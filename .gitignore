@@ -43,3 +43,9 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Lockfile de outro gerenciador de pacotes.
+# O projeto usa npm; ter dois lockfiles faz cada pessoa instalar versoes diferentes.
+pnpm-lock.yaml
+yarn.lock
+bun.lockb
