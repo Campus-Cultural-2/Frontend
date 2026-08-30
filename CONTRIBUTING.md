@@ -205,10 +205,18 @@ prova que o seu código funciona em outro lugar além da sua máquina.
 
 | Verifica | Reproduza localmente com |
 |----------|--------------------------|
-| Typecheck e lint | `npm run check` |
+| Typecheck (TypeScript) | `npm run typecheck` |
+| Lint (ESLint) | `npm run lint` |
 
-> **Ainda não configurado neste repositório.** O workflow do GitHub Actions está previsto e vai
-> rodar exatamente o `npm run check` acima. Até lá, rode manualmente antes de abrir o PR.
+Os dois juntos são o `npm run check`. No CI eles são passos separados, para o GitHub mostrar
+qual dos dois quebrou.
+
+### O projeto usa npm
+
+Instale sempre com `npm install`, nunca com `pnpm` ou `yarn`. Um segundo lockfile no
+repositório faz cada pessoa instalar versões diferentes das dependências, e aí "na minha
+máquina funciona" vira um problema de verdade. O CI roda `npm ci`, que instala exatamente o que
+está no `package-lock.json`.
 
 ### Quando o CI ficar vermelho
 
