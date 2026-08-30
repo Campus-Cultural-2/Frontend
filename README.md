@@ -100,10 +100,21 @@ npm start
 
 ### Web estático
 
+O site é publicado no Render e a configuração está versionada em
+[`render.yaml`](render.yaml). Todo commit na `main` gera um novo build.
+
+Para testar o build localmente antes de subir:
+
 ```bash
 npm run export:web
-npx serve dist   # opcional: testar localmente
+npx serve dist
 ```
+
+**A `EXPO_PUBLIC_API_URL` é embutida no bundle em tempo de build.** Mudar a
+variável no Render exige um novo build; reiniciar o serviço não adianta.
+
+Depois de publicar, adicione a origem do site em `CORS_ORIGINS` no painel do
+Render **do backend**, senão o navegador bloqueia todas as chamadas à API.
 
 No deploy do site, faça as duas coisas:
 
