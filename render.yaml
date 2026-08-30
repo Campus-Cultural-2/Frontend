@@ -1,0 +1,42 @@
+# Configuracao do site (build web) no Render, versionada junto com o codigo.
+#
+# Este arquivo publica a versao WEB do app: um site estatico gerado por
+# `expo export --platform web`. O app Android/iOS nao sai daqui; ele e
+# distribuido por EAS Build, nao por deploy.
+#
+# Como usar: no Render, New > Blueprint, apontando para este repositorio.
+#
+# O backend tem o seu proprio render.yaml, no repositorio Backend.
+
+services:
+  - type: web
+    runtime: static
+    name: campus-cultural-web
+    plan: free
+    branch: main
+
+    # Mesma regiao do backend e do banco, para o site nao ficar longe da API.
+    region: ohio
+
+    # `npm ci` instala exatamente o que esta no package-lock.json.
+    # `export:web` gera os arquivos estaticos na pasta dist/.
+    buildCommand: npm ci && npm run export:web
+    staticPublishPath: ./dist
+
+    # Publica a cada commit na main.
+    autoDeployTrigger: commit
+
+    envVars:
+      # Precisa existir em tempo de BUILD: o Expo embute este valor dentro
+      # do JavaScript gerado. Mudar aqui exige um novo build, nao basta
+      # reiniciar o servico.
+      #
+      # Nao e segredo: tudo que comeca com EXPO_PUBLIC_ fica visivel no
+      # bundle, entao pode ficar versionado neste arquivo.
+      - key: EXPO_PUBLIC_API_URL
+        value: https://campus-cultural-api.onrender.com
+
+      # O `expo export` pede mais memoria do que o padrao do Node em
+      # builds maiores.
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=4096"
