@@ -28,18 +28,18 @@ Toda chamada HTTP usa `EXPO_PUBLIC_API_URL` (sem barra no final). A variável é
 ### API no Render (recomendado para testar sem backend local)
 
 ```bash
-EXPO_PUBLIC_API_URL=https://backend-i1n3.onrender.com
+EXPO_PUBLIC_API_URL=https://campus-cultural-api.onrender.com
 ```
 
 | Onde roda | Funciona? | Observação |
 |-----------|-----------|------------|
 | **Android / iOS** (Expo Go ou build) | Sim | Basta o `.env` acima e `npm run start:clear` se já estava com outra URL |
-| **Web** (`npm run web`) | Sim* | O backend precisa liberar CORS para `http://localhost:8081` (já previsto no repositório do backend; confirme deploy no Render) |
+| **Web** (`npm run web`) | Sim | O backend já libera `http://localhost:8081` na variável `CORS_ORIGINS` |
 
 Teste rápido da API:
 
 ```bash
-curl https://backend-i1n3.onrender.com/health
+curl https://campus-cultural-api.onrender.com/health
 # esperado: {"status":"ok"}
 ```
 
@@ -105,7 +105,18 @@ npm run export:web
 npx serve dist   # opcional: testar localmente
 ```
 
-No deploy, defina `EXPO_PUBLIC_API_URL` para a API pública e adicione a URL do site em `CORS_ORIGINS` no backend.
+No deploy do site, faça as duas coisas:
+
+1. Defina `EXPO_PUBLIC_API_URL` com a URL da API no serviço que hospeda o site.
+2. **Adicione a origem do site em `CORS_ORIGINS`**, no painel do Render do backend,
+   separando por vírgula:
+
+   ```
+   CORS_ORIGINS=http://localhost:8081,https://seu-site.com
+   ```
+
+Sem o passo 2 o navegador bloqueia todas as chamadas do site para a API. É só
+uma variável de ambiente: não exige alterar código nem refazer o build do app.
 
 ### Android
 
@@ -173,7 +184,11 @@ docs/CODE_STYLE.md           convencoes
 
 ### Web: erro de CORS no console
 
-O navegador exige `Access-Control-Allow-Origin` no backend. Localmente o backend já envia CORS para `localhost:8081`. No Render, configure `CORS_ORIGINS` incluindo a origem do Expo web e a URL do front em produção.
+O navegador exige `Access-Control-Allow-Origin` no backend. A origem de onde a
+página está sendo servida precisa estar listada na variável `CORS_ORIGINS` do
+backend, no painel do Render.
+
+Só afeta o build web: no Android e no iOS não existe CORS.
 
 ### Calendário com datas pouco visíveis
 
