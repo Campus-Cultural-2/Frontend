@@ -74,7 +74,8 @@ Este guia define o padrao esperado para contribuicoes no frontend.
 
 ## Git
 
-- Mantenha `main` e `develop` como referencias fixas de fluxo no repositorio.
+- A `main` e a unica branch de longa duracao. Nao existe `develop`.
+- Todo trabalho sai da `main` em branch curta e volta por Pull Request.
 - Commits devem usar tipo convencional e gitmoji:
 
 ```bash
