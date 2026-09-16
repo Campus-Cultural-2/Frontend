@@ -1,5 +1,12 @@
 name: CI
 
+# `pull_request` (e nao `pull_request_target`) e a decisao de seguranca mais
+# importante deste arquivo. Com `pull_request`, um PR vindo de um fork roda
+# com token somente-leitura e sem acesso a nenhum segredo. O
+# `pull_request_target` roda no contexto do repositorio base, com segredos,
+# e e o que permite o ataque conhecido como Poisoned Pipeline Execution:
+# alguem abre um PR alterando o proprio workflow ou um script que ele chama,
+# e o seu CI executa esse codigo com as suas credenciais.
 on:
   pull_request:
     branches:
@@ -8,20 +15,36 @@ on:
     branches:
       - main
 
+# Menor privilegio possivel. Sem isto, o GITHUB_TOKEN recebe o que estiver
+# configurado como padrao na organizacao, que pode incluir escrita.
+# Este workflow so precisa ler o codigo.
+permissions:
+  contents: read
+
 jobs:
   quality:
     runs-on: ubuntu-latest
 
     steps:
+      # Actions sao fixadas no SHA do commit, nao na tag. Uma tag como v4 pode
+      # ser movida para outro commit; o SHA nao. O comentario ao lado diz qual
+      # versao aquele SHA representa, e o Dependabot atualiza os dois juntos.
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Nao deixa o token do GitHub gravado em .git/config depois do
+          # checkout, onde um passo posterior conseguiria ler.
+          persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
 
+      # `npm ci` instala exatamente o que esta no package-lock.json e falha se
+      # o lock estiver fora de sincronia com o package.json. Diferente do
+      # `npm install`, ele nunca resolve versoes novas por conta propria.
       - name: Install dependencies
         run: npm ci
 
