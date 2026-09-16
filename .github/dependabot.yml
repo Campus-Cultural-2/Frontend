@@ -1,0 +1,48 @@
+# Atualizacoes automaticas de dependencias, abertas como Pull Request.
+#
+# Serve a duas coisas. Primeiro, seguranca: correcao de vulnerabilidade em
+# biblioteca chega sozinha, em vez de esperar alguem lembrar de atualizar.
+# Segundo, e o que torna pratico fixar as actions no SHA do commit: sem isto,
+# os SHAs no workflow envelheceriam para sempre.
+#
+# Cada atualizacao vira um Pull Request comum, que passa pelo mesmo CI e pela
+# mesma revisao. Nada entra na main sem checagem verde.
+
+version: 2
+updates:
+  # Actions usadas nos workflows do GitHub Actions.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore"
+    labels:
+      - dependencias
+
+  # Dependencias do app, declaradas no package.json / package-lock.json.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore"
+    labels:
+      - dependencias
+    # Pacotes do Expo e do React Native precisam subir de versao juntos, na
+    # combinacao que o SDK do Expo espera. Atualizar um sozinho quebra o app,
+    # entao eles ficam de fora: a subida de SDK e feita a mao, com
+    # `npx expo install --fix`.
+    ignore:
+      - dependency-name: expo
+      - dependency-name: expo-*
+      - dependency-name: react-native
+      - dependency-name: react-native-*
+      - dependency-name: react
+      - dependency-name: react-dom
+    # Agrupa as atualizacoes pequenas do resto em um PR so.
+    groups:
+      dependencias-menores:
+        update-types:
+          - minor
+          - patch
