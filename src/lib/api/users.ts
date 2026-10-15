@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { request, requestBlob, requestPublic } from './client';
+import { request, requestPublic } from './client';
 import { requestJson } from './core';
 import { getValidAuthSession } from './session';
 import {
@@ -59,16 +59,6 @@ export async function deleteUser(userId: number) {
   });
 }
 
-export async function getProfilePictureUri(userId: number) {
-  const imageBlob = await requestBlob(`/users/${userId}/profile-picture`, { allowNotFound: true });
-
-  if (!imageBlob) {
-    return null;
-  }
-
-  return blobToDataUri(imageBlob);
-}
-
 export async function updateProfilePicture(userId: number, imageUri: string) {
   const imageBlob = await uriToBlob(imageUri);
 
@@ -85,45 +75,14 @@ export async function updateProfilePicture(userId: number, imageUri: string) {
   );
 }
 
-async function uriToBlob(uri: string) {
-  const response = await fetch(uri);
-  return response.blob();
-}
-
-function blobToDataUri(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onerror = () => reject(new Error('Não foi possível ler a imagem de perfil.'));
-    reader.onloadend = () => {
-      if (typeof reader.result !== 'string') {
-        reject(new Error('Não foi possível carregar a imagem de perfil.'));
-        return;
-      }
-
-      const base64 = reader.result.split(',')[1] ?? '';
-      resolve(`data:${getImageMimeType(base64)};base64,${base64}`);
-    };
-    reader.readAsDataURL(blob);
+// Remove a foto do perfil. O backend também apaga a imagem do Cloudinary.
+export async function deleteProfilePicture(userId: number) {
+  return request<void>(`/users/${userId}/profile-picture`, {
+    method: 'DELETE',
   });
 }
 
-function getImageMimeType(base64: string) {
-  if (base64.startsWith('iVBOR')) {
-    return 'image/png';
-  }
-
-  if (base64.startsWith('/9j/')) {
-    return 'image/jpeg';
-  }
-
-  if (base64.startsWith('R0lG')) {
-    return 'image/gif';
-  }
-
-  if (base64.startsWith('UklGR')) {
-    return 'image/webp';
-  }
-
-  return 'image/jpeg';
+async function uriToBlob(uri: string) {
+  const response = await fetch(uri);
+  return response.blob();
 }

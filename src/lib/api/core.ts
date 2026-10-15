@@ -59,34 +59,6 @@ export async function requestJson<T>(path: string, init?: RequestInit, schema?: 
   }
 }
 
-export async function requestBlobWithToken(
-  path: string,
-  authToken: string,
-  options?: { allowNotFound?: boolean },
-) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      Accept: 'application/octet-stream',
-      Authorization: `Bearer ${authToken}`,
-    },
-  });
-
-  if (options?.allowNotFound && response.status === 404) {
-    return null;
-  }
-
-  if (!response.ok) {
-    if (response.status === 401) {
-      await clearAuthToken();
-      throw new AuthSessionError();
-    }
-
-    throw new Error(await getSafeErrorMessage(response, path));
-  }
-
-  return response.blob();
-}
-
 async function getSafeErrorMessage(response: Response, path: string) {
   const fallbackMessage = getFallbackErrorMessage(path);
 

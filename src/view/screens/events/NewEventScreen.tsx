@@ -206,6 +206,17 @@ export default function NewEventScreen() {
     }));
   }
 
+  // Ao salvar, o evento fica sem imagem e o backend apaga a antiga da nuvem.
+  function removeImage() {
+    setForm((current) => ({
+      ...current,
+      imageName: '',
+      imageUri: '',
+      imageMimeType: '',
+      imageBase64: '',
+    }));
+  }
+
   function openDatePicker() {
     const now = new Date();
     setMinimumSelectableDate(now);
@@ -449,7 +460,22 @@ export default function NewEventScreen() {
             </Pressable>
           </Animatable.View>
 
-          {form.imageName ? <Text style={styles.imageName}>{form.imageName}</Text> : null}
+          {form.imageUri ? (
+            <View style={styles.imageInfoRow}>
+              <Text numberOfLines={1} style={styles.imageName}>
+                {form.imageName}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Remover imagem do evento"
+                disabled={isSaving}
+                onPress={removeImage}
+                style={styles.removeImageButton}>
+                <MaterialIcons name="delete-outline" size={15} color="#B42318" />
+                <Text style={styles.removeImageText}>Remover imagem</Text>
+              </Pressable>
+            </View>
+          ) : null}
 
           <Animatable.View
             animation="fadeInUp"
@@ -862,10 +888,32 @@ const styles = StyleSheet.create({
     height: '100%',
     width: '100%',
   },
+  imageInfoRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
   imageName: {
     color: '#7A7F87',
+    flex: 1,
     fontSize: 11,
-    marginBottom: 16,
+  },
+  removeImageButton: {
+    alignItems: 'center',
+    backgroundColor: '#FEE4E2',
+    borderRadius: 6,
+    flexDirection: 'row',
+    gap: 6,
+    height: 30,
+    paddingHorizontal: 10,
+  },
+  removeImageText: {
+    color: '#B42318',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
   loadingEventBox: {
     alignItems: 'center',
