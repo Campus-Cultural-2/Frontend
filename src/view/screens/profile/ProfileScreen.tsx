@@ -20,8 +20,8 @@ import { AppToast } from '@/components/ui/app-toast';
 import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 import {
   CurrentUser,
+  deleteProfilePicture,
   getCurrentUser,
-  getProfilePictureUri,
   hasAuthToken,
   isAuthSessionError,
   listEvents,
@@ -79,7 +79,8 @@ export default function ProfileScreen() {
 
     try {
       const currentUser = await getCurrentUser();
-      const savedAvatarUri = await getProfilePictureUri(currentUser.id);
+      // A foto fica no Cloudinary; o usuário já vem com o link dela.
+      const savedAvatarUri = currentUser.profile_picture_url ?? null;
       const nextCanManageEvents = currentUser.role === 'professor' || currentUser.role === 'admin';
       const apiEvents = nextCanManageEvents ? await listEvents() : [];
       const nextEvents = filterManageableEvents(apiEvents, currentUser.id);
@@ -189,6 +190,9 @@ export default function ProfileScreen() {
       if (profileImageUri && profileImageUri !== savedProfileImageUri) {
         await updateProfilePicture(user.id, profileImageUri);
         setSavedProfileImageUri(profileImageUri);
+      } else if (!profileImageUri && savedProfileImageUri) {
+        await deleteProfilePicture(user.id);
+        setSavedProfileImageUri(null);
       }
 
       setSavedUser(updatedUser);
@@ -288,6 +292,17 @@ export default function ProfileScreen() {
               <MaterialIcons name="edit" size={16} color="#111111" />
             </View>
           </Pressable>
+          {profileImageUri ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Remover foto de perfil"
+              disabled={isSavingProfile}
+              onPress={() => setProfileImageUri(null)}
+              style={styles.removePhotoButton}>
+              <MaterialIcons name="delete-outline" size={15} color="#B42318" />
+              <Text style={styles.removePhotoText}>Remover foto</Text>
+            </Pressable>
+          ) : null}
           <Text style={styles.title}>Meu Perfil</Text>
         </Animatable.View>
 
@@ -420,12 +435,16 @@ export default function ProfileScreen() {
               <Animatable.View animation="fadeInUp" duration={260} useNativeDriver>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Salvar foto de perfil"
+                  accessibilityLabel={
+                    profileImageUri ? 'Salvar foto de perfil' : 'Confirmar remoção da foto'
+                  }
                   disabled={isSavingProfile}
                   onPress={handleUpdateProfile}
                   style={[styles.secondaryButton, isSavingProfile ? styles.buttonDisabled : null]}>
                   <MaterialIcons name="save" size={15} color="#4C535C" />
-                  <Text style={styles.secondaryButtonText}>Salvar foto</Text>
+                  <Text style={styles.secondaryButtonText}>
+                    {profileImageUri ? 'Salvar foto' : 'Confirmar remoção'}
+                  </Text>
                 </Pressable>
               </Animatable.View>
             ) : null}
@@ -643,6 +662,23 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 8,
     width: 30,
+  },
+  removePhotoButton: {
+    alignItems: 'center',
+    backgroundColor: '#FEE4E2',
+    borderRadius: 6,
+    flexDirection: 'row',
+    gap: 6,
+    height: 30,
+    marginTop: 12,
+    paddingHorizontal: 10,
+  },
+  removePhotoText: {
+    color: '#B42318',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
   title: {
     color: '#242424',

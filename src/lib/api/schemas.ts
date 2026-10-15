@@ -9,6 +9,9 @@ export const campusUserSchema = z.object({
   is_active: z.boolean(),
   last_name: z.string(),
   name: z.string(),
+  // Link da foto no Cloudinary. Opcional para o app continuar funcionando
+  // com uma versão da API que ainda não devolve este campo.
+  profile_picture_url: z.string().nullable().optional(),
   ra: z.string().nullable(),
   role: userRoleSchema,
 });
