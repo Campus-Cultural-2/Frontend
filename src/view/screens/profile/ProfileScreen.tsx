@@ -10,6 +10,8 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
   Text,
   TextInput,
   View,
@@ -263,15 +265,29 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={loadProfile} />}
-        showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.keyboardView}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl
+              refreshing={isLoading}
+              onRefresh={loadProfile}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={
+            Platform.OS === 'ios' ? 'interactive' : 'on-drag'
+          }
+        >
         <Animatable.View
           animation="zoomIn"
           duration={440}
           style={styles.profileHeader}
-          useNativeDriver>
+          useNativeDriver
+        >
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Alterar foto de perfil"
@@ -462,6 +478,7 @@ export default function ProfileScreen() {
           </View>
         ) : null}
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <UnsavedChangesDialog
         visible={Boolean(pendingNavigation)}
@@ -616,6 +633,9 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F8F8F9',
+  },
+  keyboardView: {
+  flex: 1,
   },
   content: {
     flexGrow: 1,

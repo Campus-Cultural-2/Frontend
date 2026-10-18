@@ -29,6 +29,7 @@ export default function TabsLayout() {
     <Tabs
       initialRouteName="perfil"
       screenOptions={{
+        tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: '#111111',
         tabBarInactiveTintColor: '#9B9EA5',
         headerShown: false,

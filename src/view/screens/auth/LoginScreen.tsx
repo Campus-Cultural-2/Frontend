@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -34,7 +35,7 @@ export default function LoginScreen() {
   useEffect(() => {
     async function redirectAuthenticatedUser() {
       if (await hasAuthToken()) {
-        router.replace('/perfil');
+        router.replace('/(tabs)' as never);
       }
     }
 
@@ -53,7 +54,7 @@ export default function LoginScreen() {
 
     try {
       await login({ email: normalizedEmail, password });
-      router.replace('/perfil');
+      router.replace('/(tabs)' as never);
     } catch (error) {
       showToast({
         message: error instanceof Error ? error.message : 'Verifique seus dados e tente novamente.',
@@ -67,9 +68,13 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
-        behavior={Platform.select({ ios: 'padding', default: undefined })}
-        style={styles.container}>
-        <View style={styles.content}>
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.container}>
+        <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+            showsVerticalScrollIndicator={false}>
           <Animatable.View
             animation="zoomIn"
             duration={460}
@@ -143,7 +148,7 @@ export default function LoginScreen() {
               </Pressable>
             </View>
           </Animatable.View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
       <AppToast visible={Boolean(toast)} message={toast?.message ?? ''} type={toast?.type} />
     </SafeAreaView>
@@ -159,7 +164,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 32,
     paddingVertical: 28,
