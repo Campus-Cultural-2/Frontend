@@ -8,6 +8,7 @@ import {
   Platform,
   Pressable,
   StyleSheet,
+  ScrollView,
   Text,
   TextInput,
   View,
@@ -73,9 +74,13 @@ export default function ForgotPasswordScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
-        behavior={Platform.select({ ios: 'padding', default: undefined })}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}>
-        <View style={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          showsVerticalScrollIndicator={false}>
           <Animatable.View animation="fadeInLeft" duration={360} useNativeDriver>
             <Pressable
               accessibilityRole="button"
@@ -156,7 +161,7 @@ export default function ForgotPasswordScreen() {
               <Ionicons name="arrow-forward" size={20} color="#000000" />
             </Pressable>
           </Animatable.View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
 
       <FeedbackModal modal={modal} onClose={closeModal} />
@@ -211,7 +216,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   container: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 16,
   },
