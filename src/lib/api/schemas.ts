@@ -87,7 +87,7 @@ export type UserCreateIn = {
   password: string;
 };
 
-export type UserUpdateIn = UserCreateIn;
+export type UserUpdateIn = Omit<UserCreateIn, 'password'> & { password?: string };
 
 export type UserLoginIn = {
   email: string;

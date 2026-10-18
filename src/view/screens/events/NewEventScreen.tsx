@@ -27,6 +27,7 @@ import {
   EventCreateIn,
   EventUpdateIn,
   getEvent,
+  getValidAuthSession,
   isAuthSessionError,
   updateEvent,
 } from '@/src/lib/api/campus';
@@ -93,6 +94,8 @@ export default function NewEventScreen() {
   const [isDescriptionFocused, setIsDescriptionFocused] = useState(false);
   const [isLoadingEvent, setIsLoadingEvent] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCheckingPermission, setIsCheckingPermission] = useState(true);
+  const [hasEventPermission, setHasEventPermission] = useState(false);
 
   const isEditing = Number.isFinite(editingEventId);
   const descriptionReachedLimit = form.description.length >= DESCRIPTION_LIMIT;
@@ -107,6 +110,42 @@ export default function NewEventScreen() {
         (selectedDate?.getTime() ?? null) !== (savedSelectedDate?.getTime() ?? null)),
     [form, isLoadingEvent, savedForm, savedSelectedDate, selectedDate],
   );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function checkPermission() {
+      try {
+        const session = await getValidAuthSession();
+        if (!isMounted) return;
+
+        if (session.payload.role !== 'professor') {
+          router.replace('/calendario' as never);
+          return;
+        }
+
+        setHasEventPermission(true);
+      } catch (permissionError) {
+        if (isAuthSessionError(permissionError)) {
+          await clearAuthToken();
+          router.replace('/login' as never);
+        } else {
+          showToast({
+            message: 'Não foi possível verificar suas permissões para gerenciar eventos.',
+            type: 'error',
+          });
+          router.replace('/calendario' as never);
+        }
+      } finally {
+        if (isMounted) setIsCheckingPermission(false);
+      }
+    }
+
+    void checkPermission();
+    return () => {
+      isMounted = false;
+    };
+  }, [router, showToast]);
 
   useEffect(() => {
     async function loadEventForEditing() {
@@ -303,7 +342,10 @@ export default function NewEventScreen() {
           message: 'As alterações foram salvas.',
           type: 'success',
         });
-        setTimeout(() => router.replace('/perfil' as never), 1100);
+        setTimeout(
+          () => router.replace({ pathname: '/calendario', params: { newEventDate: payload.event_datetime } } as never),
+          1100,
+        );
       } else {
         await createEvent(payload);
         discardDraft();
@@ -311,6 +353,10 @@ export default function NewEventScreen() {
           message: 'O novo evento foi criado como ativo.',
           type: 'success',
         });
+        setTimeout(
+          () => router.replace({ pathname: '/calendario', params: { newEventDate: payload.event_datetime } } as never),
+          1100,
+        );
       }
     } catch (error) {
       if (isAuthSessionError(error)) {
@@ -345,7 +391,10 @@ export default function NewEventScreen() {
         message: 'Evento excluído com sucesso.',
         type: 'success',
       });
-      setTimeout(() => router.replace('/perfil' as never), 900);
+      setTimeout(
+        () => router.replace({ pathname: '/calendario', params: selectedDate ? { newEventDate: selectedDate.toISOString() } : {} } as never),
+        900,
+      );
     } catch (error) {
       if (isAuthSessionError(error)) {
         await clearAuthToken();
@@ -404,6 +453,17 @@ export default function NewEventScreen() {
     if (date) {
       setDraftDate(toNativeDate(date));
     }
+  }
+
+  if (isCheckingPermission || !hasEventPermission) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.permissionLoading}>
+          <ActivityIndicator size="large" color="#FFCC00" />
+          <Text style={styles.loadingEventText}>Verificando permissões...</Text>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -816,6 +876,12 @@ function areEventFormsEqual(left: EventForm, right: EventForm) {
 }
 
 const styles = StyleSheet.create({
+  permissionLoading: {
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+    justifyContent: 'center',
+  },
   safeArea: {
     flex: 1,
     backgroundColor: '#FAFAFA',

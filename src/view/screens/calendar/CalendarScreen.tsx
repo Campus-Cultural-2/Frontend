@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -22,18 +22,23 @@ import {
   listSubscribedEvents,
   subscribeToEvent,
   unsubscribeFromEvent,
+  getValidAuthSession,
 } from '@/src/lib/api/campus';
+import type { UserRole } from '@/src/lib/api/schemas';
 import { formatCampusTimeRange, getCampusDateKey } from '@/src/lib/datetime/campusTime';
 
 const PRIMARY_COLOR = '#FFCC00';
 const weekDays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
-type EventFilter = 'all' | 'subscribed';
+type EventFilter = 'all' | 'subscribed' | 'mine';
 
 export default function CalendarScreen() {
   const router = useRouter();
+  const { newEventDate } = useLocalSearchParams<{ newEventDate?: string }>();
   const { width } = useWindowDimensions();
   const [events, setEvents] = useState<CampusEvent[]>([]);
+  const [role, setRole] = useState<UserRole | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [filter, setFilter] = useState<EventFilter>('all');
   const [monthDate, setMonthDate] = useState(() => startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -50,8 +55,14 @@ export default function CalendarScreen() {
       return eventsByDay;
     }
 
-    return groupEventsByDay(events.filter((event) => enrolledEventIds.has(event.id)));
-  }, [enrolledEventIds, events, eventsByDay, filter]);
+    if (filter === 'subscribed') {
+      return groupEventsByDay(events.filter((event) => enrolledEventIds.has(event.id)));
+    }
+
+    return groupEventsByDay(
+      events.filter((event) => currentUserId !== null && event.user_id === currentUserId),
+    );
+  }, [currentUserId, enrolledEventIds, events, eventsByDay, filter]);
   const selectedDayEvents = useMemo(() => {
     if (!selectedDate) {
       return [];
@@ -70,6 +81,10 @@ export default function CalendarScreen() {
       setError(null);
 
       try {
+        const session = await getValidAuthSession();
+        setRole(session.payload.role);
+        setCurrentUserId(Number(session.payload.sub));
+
         const [apiEvents, subscribedEvents] = await Promise.all([
           listEvents(),
           listSubscribedEvents(),
@@ -92,6 +107,8 @@ export default function CalendarScreen() {
         }
 
         setEvents([]);
+        setRole(null);
+        setCurrentUserId(null);
         setError(
           calendarError instanceof Error
             ? calendarError.message
@@ -110,6 +127,17 @@ export default function CalendarScreen() {
       void loadEvents();
     }, [loadEvents]),
   );
+
+  useEffect(() => {
+    if (typeof newEventDate !== 'string') return;
+
+    const createdDate = new Date(newEventDate);
+    if (Number.isNaN(createdDate.getTime())) return;
+
+    setMonthDate(startOfMonth(createdDate));
+    setSelectedDate(createdDate);
+    setFilter('all');
+  }, [newEventDate]);
 
   function goToPreviousMonth() {
     setMonthDate((current) => startOfMonth(new Date(current.getFullYear(), current.getMonth() - 1, 1)));
@@ -228,6 +256,17 @@ export default function CalendarScreen() {
               Inscritos
             </Text>
           </Pressable>
+          {role === 'professor' && events.some((event) => typeof event.user_id === 'number') ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: filter === 'mine' }}
+              onPress={() => setFilter('mine')}
+              style={[styles.filterPill, filter === 'mine' && styles.filterPillActive]}>
+              <Text style={[styles.filterText, filter === 'mine' && styles.filterTextActive]}>
+                Meus eventos
+              </Text>
+            </Pressable>
+          ) : null}
         </Animatable.View>
 
         {isLoading ? (
@@ -294,6 +333,17 @@ export default function CalendarScreen() {
           </View>
         </Animatable.View>
 
+        {role === 'professor' ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Cadastrar evento"
+            onPress={() => router.push('/novo-evento' as never)}
+            style={styles.createEventButton}>
+            <MaterialIcons name="add-circle-outline" size={19} color="#111111" />
+            <Text style={styles.createEventButtonText}>Cadastrar evento</Text>
+          </Pressable>
+        ) : null}
+
         <Animatable.Text
           animation="fadeIn"
           delay={260}
@@ -311,6 +361,11 @@ export default function CalendarScreen() {
               index={index}
               key={event.id}
               onToggleEnrollment={() => void toggleEnrollment(event.id)}
+              onEdit={
+                role === 'professor' && currentUserId !== null && event.user_id === currentUserId
+                  ? () => router.push({ pathname: '/novo-evento', params: { eventId: String(event.id) } } as never)
+                  : undefined
+              }
             />
           ))}
 
@@ -336,11 +391,13 @@ function AgendaCard({
   event,
   index,
   onToggleEnrollment,
+  onEdit,
 }: {
   enrolled: boolean;
   event: CampusEvent;
   index: number;
   onToggleEnrollment: () => void;
+  onEdit?: () => void;
 }) {
   return (
     <Animatable.View
@@ -355,15 +412,26 @@ function AgendaCard({
           <Text numberOfLines={2} style={styles.agendaTitle}>
             {event.name}
           </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={enrolled ? 'Cancelar inscrição' : 'Inscrever-se no evento'}
-            onPress={onToggleEnrollment}
-            style={[styles.statusPill, enrolled ? styles.statusPillEnrolled : null]}>
-            <Text style={[styles.statusText, enrolled ? styles.statusTextEnrolled : null]}>
-              {enrolled ? 'Inscrito' : 'Inscrever-se'}
-            </Text>
-          </Pressable>
+          <View style={styles.agendaActions}>
+            {onEdit ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Editar evento ${event.name}`}
+                onPress={onEdit}
+                style={styles.editEventButton}>
+                <MaterialIcons name="edit" size={15} color="#555B64" />
+              </Pressable>
+            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={enrolled ? 'Cancelar inscrição' : 'Inscrever-se no evento'}
+              onPress={onToggleEnrollment}
+              style={[styles.statusPill, enrolled ? styles.statusPillEnrolled : null]}>
+              <Text style={[styles.statusText, enrolled ? styles.statusTextEnrolled : null]}>
+                {enrolled ? 'Inscrito' : 'Inscrever-se'}
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.agendaMeta}>
@@ -605,6 +673,22 @@ const styles = StyleSheet.create({
     marginTop: -2,
     width: 3,
   },
+  createEventButton: {
+    alignItems: 'center',
+    backgroundColor: PRIMARY_COLOR,
+    borderRadius: 9,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    marginTop: 16,
+    minHeight: 44,
+    paddingHorizontal: 14,
+  },
+  createEventButtonText: {
+    color: '#111111',
+    fontSize: 12,
+    fontWeight: '900',
+  },
   dayTitle: {
     color: '#2A2E35',
     fontSize: 16,
@@ -642,6 +726,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
+  },
+  agendaActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  editEventButton: {
+    alignItems: 'center',
+    backgroundColor: '#F0F1F2',
+    borderRadius: 14,
+    height: 28,
+    justifyContent: 'center',
+    width: 28,
   },
   agendaTop: {
     alignItems: 'flex-start',
