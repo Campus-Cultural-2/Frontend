@@ -1,40 +1,71 @@
+
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Tabs, useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { hasAuthToken } from '@/src/lib/api/campus';
-import { clearAuthToken } from '@/src/lib/auth/token';
+import { getValidAuthSession } from '@/src/lib/api/campus';
+import type { UserRole } from '@/src/lib/api/schemas';
 
 const TAB_ICON_SIZE = 20;
 
 export default function TabsLayout() {
   const router = useRouter();
+  const [role, setRole] = useState<UserRole | null>(null);
 
   useFocusEffect(
     useCallback(() => {
-      async function redirectUnauthenticatedUser() {
-        if (!(await hasAuthToken())) {
-          await clearAuthToken();
-          router.replace('/login' as never);
+      let cancelled = false;
+
+      async function loadRole() {
+        try {
+          const session = await getValidAuthSession();
+
+          if (!cancelled) {
+            setRole(session.payload.role);
+          }
+        } catch {
+          if (!cancelled) {
+            router.replace('/login' as never);
+          }
         }
       }
 
-      void redirectUnauthenticatedUser();
+      void loadRole();
+
+      return () => {
+        cancelled = true;
+      };
     }, [router]),
   );
 
+  if (role === null) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#FFCC00" />
+      </View>
+    );
+  }
+
+  const canManageUsers =
+    role === 'professor' || role === 'admin';
+
   return (
     <Tabs
-      initialRouteName="perfil"
+      initialRouteName="index"
       screenOptions={{
-        tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: '#111111',
         tabBarInactiveTintColor: '#9B9EA5',
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarShowLabel: false,
+        tabBarHideOnKeyboard: true,
         tabBarIconStyle: styles.tabBarIcon,
         tabBarStyle: styles.tabBar,
         tabBarItemStyle: styles.tabBarItem,
@@ -43,26 +74,74 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: 'Início',
-          tabBarIcon: ({ focused }) => <TabItem focused={focused} icon="home" label="Início" />,
+          tabBarIcon: ({ focused }) => (
+            <TabItem focused={focused} icon="home" label="Início" />
+          ),
         }}
       />
+
       <Tabs.Screen
         name="calendario"
         options={{
           title: 'Calendário',
           tabBarIcon: ({ focused }) => (
-            <TabItem focused={focused} icon="calendar-today" label="Calendário" />
+            <TabItem
+              focused={focused}
+              icon="calendar-today"
+              label="Calendário"
+            />
           ),
         }}
       />
+
+      <Tabs.Screen
+        name="certificados"
+        options={{
+          title: 'Certificados',
+          tabBarIcon: ({ focused }) => (
+            <TabItem
+              focused={focused}
+              icon="card-membership"
+              label="Certificados"
+            />
+          ),
+        }}
+      />
+
       <Tabs.Screen
         name="perfil"
         options={{
           title: 'Perfil',
-          tabBarIcon: ({ focused }) => <TabItem focused={focused} icon="person" label="Perfil" />,
+          href: canManageUsers ? null : undefined,
+          tabBarIcon: ({ focused }) => (
+            <TabItem
+              focused={focused}
+              icon="person"
+              label="Perfil"
+            />
+          ),
         }}
       />
-      <Tabs.Screen name="novo-evento" options={{ href: null }} />
+
+      <Tabs.Screen
+        name="gestao"
+        options={{
+          title: 'Gestão',
+          href: canManageUsers ? undefined : null,
+          tabBarIcon: ({ focused }) => (
+            <TabItem
+              focused={focused}
+              icon="people"
+              label="Gestão"
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="novo-evento"
+        options={{ href: null }}
+      />
     </Tabs>
   );
 }
@@ -78,7 +157,11 @@ function TabItem({
 }) {
   return (
     <View style={[styles.tabPill, focused ? styles.tabPillActive : null]}>
-      <MaterialIcons name={icon} size={TAB_ICON_SIZE} color={focused ? '#111111' : '#A0A3AB'} />
+      <MaterialIcons
+        name={icon}
+        size={TAB_ICON_SIZE}
+        color={focused ? '#111111' : '#A0A3AB'}
+      />
       <Text
         adjustsFontSizeToFit
         minimumFontScale={0.9}
@@ -91,6 +174,12 @@ function TabItem({
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    alignItems: 'center',
+    backgroundColor: '#F3F4F4',
+    flex: 1,
+    justifyContent: 'center',
+  },
   tabBar: {
     backgroundColor: '#FFFFFF',
     borderTopColor: '#EFEFEF',
@@ -112,7 +201,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 62,
     justifyContent: 'center',
-    minWidth: 96,
+    minWidth: 70,
   },
   tabBarIcon: {
     alignItems: 'center',
@@ -127,8 +216,8 @@ const styles = StyleSheet.create({
     height: 56,
     justifyContent: 'center',
     maxWidth: 118,
-    minWidth: 98,
-    paddingHorizontal: 10,
+    minWidth: 60,
+    paddingHorizontal: 4,
     width: '100%',
   },
   tabPillActive: {
@@ -139,7 +228,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Space Grotesk',
     fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
     lineHeight: 15,
     textTransform: 'uppercase',
   },

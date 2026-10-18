@@ -26,14 +26,11 @@ import {
   getCurrentUser,
   hasAuthToken,
   isAuthSessionError,
-  listEvents,
   login,
-  CampusEvent,
   updateUser,
   updateProfilePicture,
 } from '@/src/lib/api/campus';
 import { clearAuthToken } from '@/src/lib/auth/token';
-import { formatCampusTimeRange } from '@/src/lib/datetime/campusTime';
 import {
   runWithUnsavedChangesGuard,
   setUnsavedChangesHandler,
@@ -46,10 +43,7 @@ export default function ProfileScreen() {
   const [savedUser, setSavedUser] = useState<CurrentUser | null>(null);
   const [profileImageUri, setProfileImageUri] = useState<string | null>(null);
   const [savedProfileImageUri, setSavedProfileImageUri] = useState<string | null>(null);
-  const [professorEvents, setProfessorEvents] = useState<CampusEvent[]>([]);
-  const [eventSearch, setEventSearch] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const { showToast, toast } = useAppToast();
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -64,9 +58,6 @@ export default function ProfileScreen() {
       user?.last_name !== savedUser?.last_name ||
       user?.email !== savedUser?.email);
   const hasUnsavedProfileChanges = hasUnsavedProfileImage || hasUnsavedProfileData;
-  const filteredProfessorEvents = professorEvents.filter((event) =>
-    event.name.toLowerCase().includes(eventSearch.trim().toLowerCase()),
-  );
 
   const loadProfile = useCallback(async () => {
     if (!(await hasAuthToken())) {
@@ -83,15 +74,10 @@ export default function ProfileScreen() {
       const currentUser = await getCurrentUser();
       // A foto fica no Cloudinary; o usuário já vem com o link dela.
       const savedAvatarUri = currentUser.profile_picture_url ?? null;
-      const nextCanManageEvents = currentUser.role === 'professor' || currentUser.role === 'admin';
-      const apiEvents = nextCanManageEvents ? await listEvents() : [];
-      const nextEvents = filterManageableEvents(apiEvents, currentUser.id);
-
       setUser(currentUser);
       setSavedUser(currentUser);
       setProfileImageUri(savedAvatarUri);
       setSavedProfileImageUri(savedAvatarUri);
-      setProfessorEvents(nextEvents);
       setCurrentPassword('');
     } catch (profileError) {
       if (isAuthSessionError(profileError)) {
@@ -282,6 +268,22 @@ export default function ProfileScreen() {
             Platform.OS === 'ios' ? 'interactive' : 'on-drag'
           }
         >
+        {canManageEvents ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Voltar para Gestão"
+            onPress={() =>
+              requestLeave(() =>
+                router.canGoBack() ? router.back() : router.replace('/gestao' as never),
+              )
+            }
+            style={styles.backButton}
+          >
+            <MaterialIcons name="arrow-back" size={20} color="#30343A" />
+            <Text style={styles.backButtonText}>Voltar</Text>
+          </Pressable>
+        ) : null}
+
         <Animatable.View
           animation="zoomIn"
           duration={440}
@@ -380,44 +382,6 @@ export default function ProfileScreen() {
               />
             ) : null}
 
-            {canManageEvents ? (
-              <View style={styles.eventsArea}>
-                <View style={[styles.searchBox, isSearchFocused ? styles.searchBoxFocused : null]}>
-                  <MaterialIcons name="search" size={17} color="#747A84" />
-                  <TextInput
-                    autoCapitalize="none"
-                    onBlur={() => setIsSearchFocused(false)}
-                    onChangeText={setEventSearch}
-                    onFocus={() => setIsSearchFocused(true)}
-                    placeholder="Buscar eventos..."
-                    placeholderTextColor="#C0C2C7"
-                    style={styles.searchInput}
-                    value={eventSearch}
-                  />
-                </View>
-
-                {filteredProfessorEvents.length ? (
-                  filteredProfessorEvents.map((event, index) => (
-                    <EditableEventCard
-                      event={event}
-                      index={index}
-                      key={event.id}
-                      onSelect={() =>
-                        requestLeave(() =>
-                          router.push({
-                            pathname: '/novo-evento',
-                            params: { eventId: String(event.id) },
-                          } as never),
-                        )
-                      }
-                    />
-                  ))
-                ) : (
-                  <Text style={styles.emptyEventsText}>Nenhum evento encontrado.</Text>
-                )}
-              </View>
-            ) : null}
-
             <Animatable.View animation="fadeInUp" delay={320} duration={360} useNativeDriver>
               <Pressable
                 accessibilityRole="button"
@@ -434,47 +398,18 @@ export default function ProfileScreen() {
               </Pressable>
             </Animatable.View>
 
-            {canManageEvents ? (
-              <Animatable.View animation="fadeInUp" delay={380} duration={360} useNativeDriver>
+            {!canManageEvents ? (
+              <Animatable.View animation="fadeInUp" delay={440} duration={360} useNativeDriver>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Cadastrar novo evento"
-                  onPress={() => requestLeave(() => router.push('/novo-evento'))}
-                  style={[styles.primaryButton, styles.createEventButton]}>
-                  <MaterialIcons name="add" size={17} color="#111111" />
-                  <Text style={styles.primaryButtonText}>Cadastrar evento</Text>
+                  accessibilityLabel="Sair da conta"
+                  onPress={() => requestLeave(() => void handleSignOut())}
+                  style={styles.signOutButton}>
+                  <MaterialIcons name="logout" size={15} color="#676C74" />
+                  <Text style={styles.signOutText}>Sair da conta</Text>
                 </Pressable>
               </Animatable.View>
             ) : null}
-
-            {canManageEvents && hasUnsavedProfileImage ? (
-              <Animatable.View animation="fadeInUp" duration={260} useNativeDriver>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    profileImageUri ? 'Salvar foto de perfil' : 'Confirmar remoção da foto'
-                  }
-                  disabled={isSavingProfile}
-                  onPress={handleUpdateProfile}
-                  style={[styles.secondaryButton, isSavingProfile ? styles.buttonDisabled : null]}>
-                  <MaterialIcons name="save" size={15} color="#4C535C" />
-                  <Text style={styles.secondaryButtonText}>
-                    {profileImageUri ? 'Salvar foto' : 'Confirmar remoção'}
-                  </Text>
-                </Pressable>
-              </Animatable.View>
-            ) : null}
-
-            <Animatable.View animation="fadeInUp" delay={440} duration={360} useNativeDriver>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Sair da conta"
-                onPress={() => requestLeave(() => void handleSignOut())}
-                style={styles.signOutButton}>
-                <MaterialIcons name="logout" size={15} color="#676C74" />
-                <Text style={styles.signOutText}>Sair da conta</Text>
-              </Pressable>
-            </Animatable.View>
           </View>
         ) : null}
       </ScrollView>
@@ -487,55 +422,6 @@ export default function ProfileScreen() {
       />
       <AppToast visible={Boolean(toast)} message={toast?.message ?? ''} type={toast?.type} />
     </SafeAreaView>
-  );
-}
-
-function EditableEventCard({
-  event,
-  index,
-  onSelect,
-}: {
-  event: CampusEvent;
-  index: number;
-  onSelect: () => void;
-}) {
-  const eventDate = new Date(event.event_datetime);
-
-  return (
-    <Animatable.View
-      animation="fadeInUp"
-      delay={index * 80}
-      duration={360}
-      style={styles.editableEventCard}
-      useNativeDriver>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Editar evento ${event.name}`}
-        onPress={onSelect}
-        style={styles.editableEventButton}>
-        <View style={styles.eventAccent} />
-        <View style={styles.editableEventContent}>
-          <View style={styles.editableEventTop}>
-            <Text numberOfLines={2} style={styles.editableEventTitle}>
-              {event.name}
-            </Text>
-            <MaterialIcons name="edit" size={16} color="#8A8D94" />
-          </View>
-          <View style={styles.eventMeta}>
-            <View style={styles.eventMetaItem}>
-              <MaterialIcons name="schedule" size={12} color="#6F7782" />
-              <Text style={styles.eventMetaText}>{formatEventTime(eventDate)}</Text>
-            </View>
-            <View style={styles.eventMetaItem}>
-              <MaterialIcons name="place" size={12} color="#6F7782" />
-              <Text numberOfLines={1} style={styles.eventMetaText}>
-                {event.event_location}
-              </Text>
-            </View>
-          </View>
-        </View>
-      </Pressable>
-    </Animatable.View>
   );
 }
 
@@ -599,10 +485,6 @@ function roleLabel(role: CurrentUser['role']) {
   return labels[role];
 }
 
-function formatEventTime(value: Date) {
-  return formatCampusTimeRange(value);
-}
-
 function validateProfileData(user: CurrentUser) {
   if (!user.name.trim() || !user.last_name.trim()) {
     return 'Informe nome e sobrenome antes de salvar.';
@@ -619,17 +501,21 @@ function isInstitutionalEmail(email: string) {
   return /^[^\s@]+@(alunos\.)?utfpr\.edu\.br$/i.test(email);
 }
 
-function filterManageableEvents(events: CampusEvent[], currentUserId: number) {
-  const backendInformsOwner = events.some((event) => typeof event.user_id === 'number');
-
-  if (!backendInformsOwner) {
-    return events;
-  }
-
-  return events.filter((event) => event.user_id === currentUserId);
-}
-
 const styles = StyleSheet.create({
+  backButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+    minHeight: 36,
+    paddingHorizontal: 2,
+  },
+  backButtonText: {
+    color: '#30343A',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   safeArea: {
     flex: 1,
     backgroundColor: '#F8F8F9',
