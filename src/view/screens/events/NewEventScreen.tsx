@@ -19,6 +19,8 @@ import {
 import { DateType } from 'react-native-ui-datepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import EventCreationWizard from '@/src/view/screens/events/EventCreationWizard';
+
 import { AppToast } from '@/components/ui/app-toast';
 import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 import {
@@ -77,6 +79,16 @@ const requiredFields: (keyof Pick<EventForm, 'name' | 'dateTime' | 'place' | 'de
 ];
 
 export default function NewEventScreen() {
+  const { eventId } = useLocalSearchParams<{ eventId?: string }>();
+
+  if (!eventId) {
+    return <EventCreationWizard/>;
+  }
+
+  return <ExistingEventEditorScreen />;
+}
+
+function ExistingEventEditorScreen() {
   const router = useRouter();
   const { eventId } = useLocalSearchParams<{ eventId?: string }>();
   const editingEventId = eventId ? Number(eventId) : null;
