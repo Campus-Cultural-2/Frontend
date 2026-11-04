@@ -140,8 +140,14 @@ git push -u origin feat/inscricao-em-evento
 
 O GitHub mostra um botão "Compare & pull request" depois do push.
 
-Na descrição, diga o que mudou, por quê, e como o revisor pode testar. Se mexeu em tela, um print
-ou um vídeo curto ajuda muito.
+O GitHub preenche a descrição sozinho com o template em
+[`.github/pull_request_template.md`](.github/pull_request_template.md). Diga o que
+mudou, por quê, e como o revisor pode testar.
+
+**Se mexeu em tela, anexe print ou vídeo curto.** Layout não se revisa por texto.
+
+Se a mudança depender de uma PR no backend, linke uma na outra: as duas precisam
+ser mergeadas próximas, senão o app chama uma API que ainda não existe.
 
 ### 8. Espere o CI e peça review
 
