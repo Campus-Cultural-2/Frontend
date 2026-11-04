@@ -36,6 +36,12 @@ updates:
     ignore:
       - dependency-name: expo
       - dependency-name: expo-*
+      # O eslint-config-expo tambem acompanha o SDK, apesar do nome nao
+      # comecar com "expo". A versao dele e a do SDK: a 57 e para o SDK 57.
+      # Ele foi atualizado de 10 para 57 estando o projeto no SDK 54, e isso
+      # ligou regras novas do react-hooks que reprovaram codigo que ja
+      # estava na main. Instala sem reclamar porque so exige eslint >= 8.10.
+      - dependency-name: eslint-config-expo
       - dependency-name: react-native
       - dependency-name: react-native-*
       - dependency-name: react
