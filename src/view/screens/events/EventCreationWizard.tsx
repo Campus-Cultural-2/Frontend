@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppToast } from '@/components/ui/app-toast';
 import { CampusDatePicker } from '@/components/ui/campus-date-picker';
 import { createEvent, getValidAuthSession, isAuthSessionError } from '@/src/lib/api/campus';
+import type { HoursGroup } from '@/src/lib/api/schemas';
 import { clearAuthToken } from '@/src/lib/auth/token';
 import {
   CAMPUS_TIME_ZONE,
@@ -35,13 +36,10 @@ const MUTED = '#737982';
 const BACKGROUND = '#FAFAFA';
 const DESCRIPTION_LIMIT = 500;
 
-const CATEGORIES = [
-  'Atividades acadêmicas',
-  'Palestra',
-  'Oficina',
-  'Workshop',
-  'Evento cultural',
-  'Outros',
+const HOURS_GROUPS: Array<{ value: HoursGroup; label: string }> = [
+  { value: 'group_1', label: 'Grupo 1 · Formação social, humana e cultural' },
+  { value: 'group_2', label: 'Grupo 2 · Atividades comunitárias e coletivas' },
+  { value: 'group_3', label: 'Grupo 3 · Iniciação científica e formação profissional' },
 ];
 
 type EventWizardForm = {
@@ -50,7 +48,7 @@ type EventWizardForm = {
   place: string;
   description: string;
   workload: string;
-  category: string;
+  hoursGroup: HoursGroup;
   capacity: string;
   issueCertificate: boolean;
 };
@@ -63,7 +61,7 @@ const INITIAL_FORM: EventWizardForm = {
   place: '',
   description: '',
   workload: '20',
-  category: 'Atividades acadêmicas',
+  hoursGroup: 'group_1',
   capacity: '120',
   issueCertificate: true,
 };
@@ -178,7 +176,7 @@ export default function EventCreationWizard() {
     const nextErrors: Partial<Record<keyof EventWizardForm, string>> = {};
     const workload = Number(form.workload);
     const capacity = Number(form.capacity);
-    if (!Number.isFinite(workload) || workload <= 0) {
+    if (form.issueCertificate && (!Number.isFinite(workload) || workload <= 0)) {
       nextErrors.workload = 'Informe uma carga horária válida.';
     }
     if (!Number.isInteger(capacity) || capacity <= 0) {
@@ -196,14 +194,16 @@ export default function EventCreationWizard() {
     if (!selectedDate) return;
     setIsPublishing(true);
     try {
-      // A API presente neste projeto aceita somente os campos básicos do evento.
-      // Certificado, categoria, carga horária e capacidade ainda não fazem parte do contrato atual.
       const createdEvent = await createEvent({
         name: form.name.trim(),
         event_datetime: toCampusDateTimeIso(selectedDate),
         event_location: form.place.trim(),
         description: form.description.trim(),
         image: null,
+        has_certificate: form.issueCertificate,
+        workload_hours: form.issueCertificate ? Number(form.workload) : null,
+        hours_group: form.issueCertificate ? form.hoursGroup : null,
+        max_participants: Number(form.capacity),
       });
       setPublishedEventId(createdEvent.id);
       setStep(4);
@@ -417,7 +417,7 @@ export default function EventCreationWizard() {
                         onPress={() => setIsCategoryPickerVisible(true)}
                         style={styles.inputShell}>
                         <MaterialIcons name="layers" size={17} color="#777E87" />
-                        <Text numberOfLines={1} style={styles.inputValue}>{form.category}</Text>
+                        <Text numberOfLines={1} style={styles.inputValue}>{getHoursGroupLabel(form.hoursGroup)}</Text>
                         <MaterialIcons name="expand-more" size={18} color="#737982" />
                       </Pressable>
                     </View>
@@ -477,8 +477,8 @@ export default function EventCreationWizard() {
                         </Text>
                       </View>
                     </View>
-                    <ReviewLine icon="schedule" label="CARGA HORÁRIA" value={`${form.workload} horas`} />
-                    <ReviewLine icon="layers" label="CATEGORIA" value={form.category} />
+                    <ReviewLine icon="schedule" label="CARGA HORÁRIA" value={form.issueCertificate ? `${form.workload} horas` : 'Não se aplica'} />
+                    <ReviewLine icon="layers" label="GRUPO DE ATIVIDADES" value={form.issueCertificate ? getHoursGroupLabel(form.hoursGroup) : 'Não se aplica'} />
                     <ReviewLine icon="people-outline" label="CAPACIDADE" value={`${form.capacity} pessoas`} />
                   </View>
 
@@ -594,18 +594,18 @@ export default function EventCreationWizard() {
         onRequestClose={() => setIsCategoryPickerVisible(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setIsCategoryPickerVisible(false)}>
           <Pressable style={styles.categoryModalCard} onPress={() => undefined}>
-            <Text style={styles.modalTitle}>Selecionar categoria</Text>
-            {CATEGORIES.map((category) => (
+            <Text style={styles.modalTitle}>Grupo de atividades complementares</Text>
+            {HOURS_GROUPS.map((group) => (
               <Pressable
                 accessibilityRole="button"
-                key={category}
+                key={group.value}
                 onPress={() => {
-                  updateField('category', category);
+                  updateField('hoursGroup', group.value);
                   setIsCategoryPickerVisible(false);
                 }}
                 style={styles.categoryOption}>
-                <Text style={styles.categoryOptionText}>{category}</Text>
-                {form.category === category ? <MaterialIcons name="check" size={19} color={INK} /> : null}
+                <Text style={styles.categoryOptionText}>{group.label}</Text>
+                {form.hoursGroup === group.value ? <MaterialIcons name="check" size={19} color={INK} /> : null}
               </Pressable>
             ))}
           </Pressable>
@@ -699,6 +699,10 @@ function PrimaryButton({
       <Text style={styles.primaryButtonText}>{label}</Text>
     </Pressable>
   );
+}
+
+function getHoursGroupLabel(value: HoursGroup) {
+  return HOURS_GROUPS.find((group) => group.value === value)?.label ?? 'Grupo 1';
 }
 
 function getDefaultDate() {

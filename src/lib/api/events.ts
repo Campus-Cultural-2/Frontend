@@ -5,6 +5,7 @@ import {
   campusEventSchema,
   EventCreateIn,
   EventUpdateIn,
+  eventSubscriberSchema,
   subscriptionOutSchema,
 } from './schemas';
 
@@ -18,6 +19,14 @@ export async function listSubscribedEvents() {
 
 export async function getEvent(eventId: number) {
   return request(`/events/${eventId}`, undefined, campusEventSchema);
+}
+
+export async function listEventSubscribers(eventId: number) {
+  return request(
+    `/events/${eventId}/subscribers`,
+    undefined,
+    z.array(eventSubscriberSchema),
+  );
 }
 
 export async function subscribeToEvent(eventId: number) {
