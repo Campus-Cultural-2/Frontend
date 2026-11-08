@@ -366,6 +366,11 @@ export default function CalendarScreen() {
                   ? () => router.push({ pathname: '/novo-evento', params: { eventId: String(event.id) } } as never)
                   : undefined
               }
+              onDetails={
+                role === 'student'
+                  ? () => router.push({ pathname: '/evento-detalhe', params: { eventId: String(event.id) } } as never)
+                  : undefined
+              }
             />
           ))}
 
@@ -392,12 +397,14 @@ function AgendaCard({
   index,
   onToggleEnrollment,
   onEdit,
+  onDetails,
 }: {
   enrolled: boolean;
   event: CampusEvent;
   index: number;
   onToggleEnrollment: () => void;
   onEdit?: () => void;
+  onDetails?: () => void;
 }) {
   return (
     <Animatable.View
@@ -446,6 +453,12 @@ function AgendaCard({
             </Text>
           </View>
         </View>
+        {onDetails ? (
+          <Pressable accessibilityRole="button" onPress={onDetails} style={styles.detailsLink}>
+            <Text style={styles.detailsLinkText}>Ver detalhes do evento</Text>
+            <MaterialIcons name="arrow-forward" size={14} color="#454B53" />
+          </Pressable>
+        ) : null}
       </View>
     </Animatable.View>
   );
@@ -783,6 +796,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 3,
     maxWidth: '100%',
+  },
+  detailsLink: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    gap: 5,
+    marginTop: 10,
+  },
+  detailsLinkText: {
+    color: '#454B53',
+    fontSize: 10,
+    fontWeight: '800',
   },
   agendaMetaText: {
     color: '#5F6670',
