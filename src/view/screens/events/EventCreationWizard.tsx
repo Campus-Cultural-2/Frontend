@@ -21,7 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppToast } from '@/components/ui/app-toast';
 import { CampusDatePicker } from '@/components/ui/campus-date-picker';
 import { createEvent, getValidAuthSession, isAuthSessionError } from '@/src/lib/api/campus';
-import type { HoursGroup } from '@/src/lib/api/schemas';
+import type { AttendanceMode, HoursGroup } from '@/src/lib/api/schemas';
 import { clearAuthToken } from '@/src/lib/auth/token';
 import {
   CAMPUS_TIME_ZONE,
@@ -45,6 +45,8 @@ const HOURS_GROUPS: Array<{ value: HoursGroup; label: string }> = [
 type EventWizardForm = {
   name: string;
   dateTime: string;
+  endDateTime: string;
+  attendanceMode: AttendanceMode;
   place: string;
   description: string;
   workload: string;
@@ -55,9 +57,29 @@ type EventWizardForm = {
 
 type WizardStep = 1 | 2 | 3 | 4;
 
+const ATTENDANCE_OPTIONS: { description: string; label: string; value: AttendanceMode }[] = [
+  {
+    description: 'Todos os inscritos contam como presentes.',
+    label: 'Sem confirmação',
+    value: 'none',
+  },
+  {
+    description: 'Você confirma na lista ou lendo o QR code de cada aluno.',
+    label: 'Pelo professor',
+    value: 'professor',
+  },
+  {
+    description: 'O aluno lê o código (QR code) do evento para confirmar.',
+    label: 'Pelo aluno',
+    value: 'student',
+  },
+];
+
 const INITIAL_FORM: EventWizardForm = {
   name: '',
   dateTime: '',
+  endDateTime: '',
+  attendanceMode: 'none',
   place: '',
   description: '',
   workload: '20',
@@ -72,6 +94,8 @@ export default function EventCreationWizard() {
   const [form, setForm] = useState<EventWizardForm>(INITIAL_FORM);
   const [step, setStep] = useState<WizardStep>(1);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(null);
+  const [pickerTarget, setPickerTarget] = useState<'start' | 'end'>('start');
   const [draftDate, setDraftDate] = useState<Date>(() => getDefaultDate());
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
   const [isCategoryPickerVisible, setIsCategoryPickerVisible] = useState(false);
@@ -134,7 +158,20 @@ export default function EventCreationWizard() {
   }
 
   function openDatePicker() {
+    setPickerTarget('start');
     setDraftDate(selectedDate ?? getDefaultDate());
+    setIsDatePickerVisible(true);
+  }
+
+  function openEndDatePicker() {
+    // Sugere uma hora depois do inicio.
+    const start = selectedDate ?? getDefaultDate();
+    setPickerTarget('end');
+    setDraftDate(
+      selectedEndDate && selectedEndDate.getTime() > start.getTime()
+        ? selectedEndDate
+        : new Date(start.getTime() + 60 * 60 * 1000),
+    );
     setIsDatePickerVisible(true);
   }
 
@@ -144,6 +181,25 @@ export default function EventCreationWizard() {
   }
 
   function confirmDate() {
+    if (pickerTarget === 'end') {
+      if (selectedDate && draftDate.getTime() <= selectedDate.getTime()) {
+        setErrors((current) => ({
+          ...current,
+          endDateTime: 'O encerramento precisa ser depois do início.',
+        }));
+        showToast({
+          message: 'O horário de encerramento precisa ser depois do início.',
+          type: 'warning',
+        });
+        return;
+      }
+
+      setSelectedEndDate(draftDate);
+      updateField('endDateTime', formatCampusDateTimeLabel(draftDate));
+      setIsDatePickerVisible(false);
+      return;
+    }
+
     if (draftDate.getTime() <= Date.now()) {
       setErrors((current) => ({ ...current, dateTime: 'Escolha uma data e horário futuros.' }));
       showToast({ message: 'O evento precisa ter data e horário futuros.', type: 'warning' });
@@ -152,6 +208,11 @@ export default function EventCreationWizard() {
 
     setSelectedDate(draftDate);
     updateField('dateTime', formatCampusDateTimeLabel(draftDate));
+    if (selectedEndDate && selectedEndDate.getTime() <= draftDate.getTime()) {
+      // O inicio passou do fim antigo: o fim precisa ser escolhido de novo.
+      setSelectedEndDate(null);
+      updateField('endDateTime', '');
+    }
     setIsDatePickerVisible(false);
   }
 
@@ -160,6 +221,11 @@ export default function EventCreationWizard() {
     if (!form.name.trim()) nextErrors.name = 'Informe o nome do evento.';
     if (!selectedDate || selectedDate.getTime() <= Date.now()) {
       nextErrors.dateTime = 'Escolha uma data e horário futuros.';
+    }
+    if (!selectedEndDate) {
+      nextErrors.endDateTime = 'Escolha o horário de encerramento.';
+    } else if (selectedDate && selectedEndDate.getTime() <= selectedDate.getTime()) {
+      nextErrors.endDateTime = 'O encerramento precisa ser depois do início.';
     }
     if (!form.place.trim()) nextErrors.place = 'Informe o local do evento.';
     if (!form.description.trim()) nextErrors.description = 'Informe uma descrição.';
@@ -191,12 +257,14 @@ export default function EventCreationWizard() {
   }
 
   async function publishEvent() {
-    if (!selectedDate) return;
+    if (!selectedDate || !selectedEndDate) return;
     setIsPublishing(true);
     try {
       const createdEvent = await createEvent({
         name: form.name.trim(),
         event_datetime: toCampusDateTimeIso(selectedDate),
+        event_end_datetime: toCampusDateTimeIso(selectedEndDate),
+        attendance_mode: form.attendanceMode,
         event_location: form.place.trim(),
         description: form.description.trim(),
         image: null,
@@ -333,6 +401,16 @@ export default function EventCreationWizard() {
                   </View>
 
                   <WizardInput
+                    label="Encerramento"
+                    required
+                    placeholder="Selecione o horário de encerramento"
+                    value={form.endDateTime}
+                    onPress={openEndDatePicker}
+                    error={errors.endDateTime}
+                    icon="schedule"
+                  />
+
+                  <WizardInput
                     label="Local"
                     required
                     placeholder="Ex.: Centro de Convenções · UTFPR"
@@ -435,6 +513,38 @@ export default function EventCreationWizard() {
                     keyboardType="numeric"
                   />
 
+                  <View>
+                    <Text style={styles.fieldLabel}>CONFIRMAÇÃO DE PRESENÇA</Text>
+                    <View style={{ gap: 8, marginTop: 8 }}>
+                      {ATTENDANCE_OPTIONS.map((option) => {
+                        const selected = option.value === form.attendanceMode;
+
+                        return (
+                          <Pressable
+                            accessibilityRole="radio"
+                            accessibilityState={{ selected }}
+                            key={option.value}
+                            onPress={() => updateField('attendanceMode', option.value)}
+                            style={[
+                              styles.certificateCard,
+                              { gap: 4, paddingVertical: 12 },
+                              selected ? { borderColor: INK, borderWidth: 1.5 } : null,
+                            ]}>
+                            <View style={styles.certificateCopy}>
+                              <Text style={styles.cardTitleSmall}>{option.label}</Text>
+                              <Text style={styles.cardDescriptionSmall}>{option.description}</Text>
+                            </View>
+                            <MaterialIcons
+                              color={selected ? INK : '#B8BCC2'}
+                              name={selected ? 'radio-button-checked' : 'radio-button-unchecked'}
+                              size={20}
+                            />
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+
                   <View style={styles.integrationCard}>
                     <MaterialIcons name="extension" size={19} color="#4E535B" />
                     <View style={styles.noticeTextWrap}>
@@ -464,6 +574,8 @@ export default function EventCreationWizard() {
                     </View>
                     <View style={styles.horizontalRule} />
                     <ReviewLine icon="event" label="DATA E HORÁRIO" value={selectedDate ? `${eventDateSummary} · ${formatCampusDateTimeLabel(selectedDate).split('·').pop()?.trim()}` : ''} />
+                    <ReviewLine icon="schedule" label="ENCERRAMENTO" value={selectedEndDate ? formatCampusDateTimeLabel(selectedEndDate) : ''} />
+                    <ReviewLine icon="how-to-reg" label="PRESENÇA" value={ATTENDANCE_OPTIONS.find((option) => option.value === form.attendanceMode)?.label ?? ''} />
                     <ReviewLine icon="place" label="LOCAL" value={form.place.trim()} />
                     <Text style={styles.reviewDescription}>{form.description.trim()}</Text>
                   </View>
@@ -558,7 +670,7 @@ export default function EventCreationWizard() {
         <View style={styles.modalOverlay}>
           <View style={styles.dateModalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Data e horário</Text>
+              <Text style={styles.modalTitle}>{pickerTarget === 'end' ? 'Encerramento' : 'Data e horário'}</Text>
               <Pressable accessibilityRole="button" onPress={() => setIsDatePickerVisible(false)} hitSlop={10}>
                 <MaterialIcons name="close" size={22} color="#5F6670" />
               </Pressable>
@@ -568,7 +680,7 @@ export default function EventCreationWizard() {
               endYear={new Date().getFullYear() + 5}
               firstDayOfWeek={0}
               locale="pt-br"
-              minDate={new Date()}
+              minDate={pickerTarget === 'end' && selectedDate ? selectedDate : new Date()}
               onChange={(params) => handleDatePickerChange(params.date)}
               startYear={new Date().getFullYear()}
               timePicker

@@ -366,6 +366,12 @@ export default function CalendarScreen() {
                   ? () => router.push({ pathname: '/novo-evento', params: { eventId: String(event.id) } } as never)
                   : undefined
               }
+              onAttendance={
+                role === 'admin' ||
+                (role === 'professor' && currentUserId !== null && event.user_id === currentUserId)
+                  ? () => router.push({ pathname: '/presenca', params: { eventId: String(event.id) } } as never)
+                  : undefined
+              }
               onDetails={
                 role === 'student'
                   ? () => router.push({ pathname: '/evento-detalhe', params: { eventId: String(event.id) } } as never)
@@ -397,6 +403,7 @@ function AgendaCard({
   index,
   onToggleEnrollment,
   onEdit,
+  onAttendance,
   onDetails,
 }: {
   enrolled: boolean;
@@ -404,8 +411,11 @@ function AgendaCard({
   index: number;
   onToggleEnrollment: () => void;
   onEdit?: () => void;
+  onAttendance?: () => void;
   onDetails?: () => void;
 }) {
+  const router = useRouter();
+
   return (
     <Animatable.View
       animation="fadeInUp"
@@ -444,7 +454,7 @@ function AgendaCard({
         <View style={styles.agendaMeta}>
           <View style={styles.metaItem}>
             <MaterialIcons name="schedule" size={13} color="#6F7782" />
-            <Text style={styles.agendaMetaText}>{formatCampusTimeRange(event.event_datetime)}</Text>
+            <Text style={styles.agendaMetaText}>{formatCampusTimeRange(event.event_datetime, event.event_end_datetime)}</Text>
           </View>
           <View style={styles.metaItem}>
             <MaterialIcons name="place" size={13} color="#6F7782" />
@@ -457,6 +467,33 @@ function AgendaCard({
           <Pressable accessibilityRole="button" onPress={onDetails} style={styles.detailsLink}>
             <Text style={styles.detailsLinkText}>Ver detalhes do evento</Text>
             <MaterialIcons name="arrow-forward" size={14} color="#454B53" />
+          </Pressable>
+        ) : null}
+        {onAttendance ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={onAttendance}
+            style={{ alignItems: 'center', flexDirection: 'row', gap: 6, marginTop: 8 }}>
+            <MaterialIcons name="how-to-reg" size={16} color="#111111" />
+            <Text style={{ color: '#111111', fontSize: 12, fontWeight: '700' }}>
+              Gerenciar presença
+            </Text>
+          </Pressable>
+        ) : null}
+        {enrolled && event.attendance_mode !== 'none' ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              router.push({
+                pathname: '/meu-ingresso',
+                params: { eventId: String(event.id) },
+              } as never)
+            }
+            style={{ alignItems: 'center', flexDirection: 'row', gap: 6, marginTop: 8 }}>
+            <MaterialIcons name="how-to-reg" size={16} color="#111111" />
+            <Text style={{ color: '#111111', fontSize: 12, fontWeight: '700' }}>
+              Confirmar presença
+            </Text>
           </Pressable>
         ) : null}
       </View>

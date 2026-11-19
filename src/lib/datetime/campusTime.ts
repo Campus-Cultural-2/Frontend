@@ -30,9 +30,9 @@ export function formatCampusDateTimeLabel(value: Date) {
   return `${day} ${month} · ${time}`;
 }
 
-export function formatCampusTimeRange(value: string | Date, durationMinutes = 90) {
+export function formatCampusTimeRange(value: string | Date, end?: string | Date | null) {
   const startDate = toDate(value);
-  const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+  const endDate = end ? toDate(end) : new Date(startDate.getTime() + 90 * 60 * 1000);
 
   return `${formatCampusTime(startDate)} - ${formatCampusTime(endDate)}`;
 }
