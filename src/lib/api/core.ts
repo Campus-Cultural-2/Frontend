@@ -59,6 +59,14 @@ export async function requestJson<T>(path: string, init?: RequestInit, schema?: 
       throw new Error('Você não está inscrito neste evento.');
     }
 
+    if (response.status === 403 && /\/events\/\d+\/subscribers$/.test(path)) {
+      throw new Error('403: Somente o professor que organizou este evento ou um administrador pode consultar os participantes.');
+    }
+
+    if (response.status === 404 && /\/events\/\d+\/subscribers$/.test(path)) {
+      throw new Error('A rota de participantes não está disponível na API publicada. O backend precisa estar atualizado com a branch feat/lista-de-inscritos-do-evento e essa versão precisa ter sido implantada no servidor.');
+    }
+
     if (response.status === 404 && path.startsWith('/events/')) {
       throw new Error('Evento não encontrado ou você não tem permissão para alterá-lo.');
     }
@@ -81,34 +89,6 @@ export async function requestJson<T>(path: string, init?: RequestInit, schema?: 
   } catch {
     throw new Error(getInvalidApiResponseMessage(path));
   }
-}
-
-export async function requestBlobWithToken(
-  path: string,
-  authToken: string,
-  options?: { allowNotFound?: boolean },
-) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      Accept: 'application/octet-stream',
-      Authorization: `Bearer ${authToken}`,
-    },
-  });
-
-  if (options?.allowNotFound && response.status === 404) {
-    return null;
-  }
-
-  if (!response.ok) {
-    if (response.status === 401) {
-      await clearAuthToken();
-      throw new AuthSessionError();
-    }
-
-    throw new Error(getSafeErrorMessage(await response.text(), response.status, path));
-  }
-
-  return response.blob();
 }
 
 function getSafeErrorMessage(responseText: string, status: number, path: string) {

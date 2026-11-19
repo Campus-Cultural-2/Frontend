@@ -197,7 +197,7 @@ export default function RegisterScreen() {
 
       showToast({ message: 'Sua conta foi criada com sucesso.', type: 'success' });
       navigationTimerRef.current = setTimeout(() => {
-        router.replace('/perfil');
+        router.replace('/(tabs)' as never);
       }, 700);
     } catch (error) {
       showToast({
@@ -212,11 +212,12 @@ export default function RegisterScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
-        behavior={Platform.select({ ios: 'padding', default: undefined })}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}>
         <ScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           showsVerticalScrollIndicator={false}>
           <Animatable.View animation="fadeInLeft" duration={360} useNativeDriver>
             <Pressable

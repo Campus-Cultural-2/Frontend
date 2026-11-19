@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { requestBlobWithToken, requestJson } from './core';
+import { requestJson } from './core';
 import { getValidAuthSession } from './session';
 
 export async function request<T>(path: string, init?: RequestInit, schema?: z.ZodType<T>) {
@@ -21,9 +21,4 @@ export async function request<T>(path: string, init?: RequestInit, schema?: z.Zo
 
 export async function requestPublic<T>(path: string, init?: RequestInit, schema?: z.ZodType<T>) {
   return requestJson(path, init, schema);
-}
-
-export async function requestBlob(path: string, options?: { allowNotFound?: boolean }) {
-  const authSession = await getValidAuthSession();
-  return requestBlobWithToken(path, authSession.token, options);
 }

@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as Animatable from 'react-native-animatable';
 import {
   ActivityIndicator,
@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -27,6 +28,8 @@ export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const isPressingPasswordEye = useRef(false);
   const [focusedField, setFocusedField] = useState<FocusedField>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { showToast, toast } = useAppToast();
@@ -34,7 +37,7 @@ export default function LoginScreen() {
   useEffect(() => {
     async function redirectAuthenticatedUser() {
       if (await hasAuthToken()) {
-        router.replace('/perfil');
+        router.replace('/(tabs)' as never);
       }
     }
 
@@ -53,7 +56,7 @@ export default function LoginScreen() {
 
     try {
       await login({ email: normalizedEmail, password });
-      router.replace('/perfil');
+      router.replace('/(tabs)' as never);
     } catch (error) {
       showToast({
         message: error instanceof Error ? error.message : 'Verifique seus dados e tente novamente.',
@@ -67,9 +70,13 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
-        behavior={Platform.select({ ios: 'padding', default: undefined })}
-        style={styles.container}>
-        <View style={styles.content}>
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.container}>
+        <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+            showsVerticalScrollIndicator={false}>
           <Animatable.View
             animation="zoomIn"
             duration={460}
@@ -110,16 +117,41 @@ export default function LoginScreen() {
               <View style={[styles.inputLine, focusedField === 'password' ? styles.inputLineFocused : null]}>
                 <TextInput
                   autoCapitalize="none"
-                  onBlur={() => setFocusedField(null)}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    // Pressionar o olho pode tirar o foco do TextInput em alguns
+                    // aparelhos. Nesse caso, mantemos a senha visível até soltar.
+                    if (!isPressingPasswordEye.current) setIsPasswordVisible(false);
+                  }}
                   onChangeText={setPassword}
                   onFocus={() => setFocusedField('password')}
                   placeholder="Digite sua senha"
                   placeholderTextColor="#B9B9B9"
-                  secureTextEntry
+                  secureTextEntry={!isPasswordVisible}
                   style={styles.input}
                   value={password}
                 />
-                <MaterialIcons name="lock-outline" size={24} color="#C8C8C8" />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={isPasswordVisible ? 'Senha visível. Solte para ocultar.' : 'Segure para visualizar a senha'}
+                  accessibilityState={{ selected: isPasswordVisible }}
+                  disabled={isLoading}
+                  hitSlop={10}
+                  onPressIn={() => {
+                    isPressingPasswordEye.current = true;
+                    setIsPasswordVisible(true);
+                  }}
+                  onPressOut={() => {
+                    isPressingPasswordEye.current = false;
+                    setIsPasswordVisible(false);
+                  }}
+                  style={styles.passwordVisibilityButton}>
+                  <MaterialIcons
+                    name={isPasswordVisible ? 'visibility' : 'visibility-off'}
+                    size={22}
+                    color={password.length > 0 ? '#777777' : '#C8C8C8'}
+                  />
+                </Pressable>
               </View>
             </View>
 
@@ -143,7 +175,7 @@ export default function LoginScreen() {
               </Pressable>
             </View>
           </Animatable.View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
       <AppToast visible={Boolean(toast)} message={toast?.message ?? ''} type={toast?.type} />
     </SafeAreaView>
@@ -159,7 +191,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 32,
     paddingVertical: 28,
@@ -218,6 +250,12 @@ const styles = StyleSheet.create({
   inputLineFocused: {
     backgroundColor: '#FFFBEA',
     borderBottomColor: '#FFCC00',
+  },
+  passwordVisibilityButton: {
+    alignItems: 'center',
+    height: 40,
+    justifyContent: 'center',
+    width: 36,
   },
   input: {
     color: '#222222',

@@ -179,10 +179,15 @@ docs/CODE_STYLE.md           convencoes
 
 ## Contribuição
 
-1. `git checkout develop && git pull`
-2. Branch descritiva → código seguindo `docs/CODE_STYLE.md`
+O projeto usa **uma única branch de longa duração: `main`**. Não existe branch `develop`.
+
+1. `git checkout main && git pull`
+2. Branch curta no formato `tipo/descricao-curta` → código seguindo [`docs/CODE_STYLE.md`](docs/CODE_STYLE.md)
 3. `npm run check && npm run export:web`
-4. Commit (Conventional Commits + gitmoji) → PR para `develop`
+4. Commit (Conventional Commits) → PR para `main`
+
+A `main` é protegida: só aceita commit via Pull Request com a checagem `quality` do CI
+passando. O fluxo completo está em [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Problemas comuns
 

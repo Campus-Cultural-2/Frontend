@@ -9,11 +9,16 @@ export const campusUserSchema = z.object({
   is_active: z.boolean(),
   last_name: z.string(),
   name: z.string(),
+  // Link da foto no Cloudinary. Opcional para o app continuar funcionando
+  // com uma versão da API que ainda não devolve este campo.
+  profile_picture_url: z.string().nullable().optional(),
   ra: z.string().nullable(),
   role: userRoleSchema,
 });
 
 export const attendanceModeSchema = z.enum(['none', 'professor', 'student']);
+export const hoursGroupSchema = z.enum(['group_1', 'group_2', 'group_3']);
+export type HoursGroup = z.infer<typeof hoursGroupSchema>;
 
 export const campusEventSchema = z.object({
   attendance_mode: attendanceModeSchema.default('none'),
@@ -26,6 +31,26 @@ export const campusEventSchema = z.object({
   image: z.string().nullable(),
   name: z.string(),
   user_id: z.number().optional(),
+  // Campos opcionais disponíveis na branch de certificados do backend.
+  // Permanecem opcionais para manter compatibilidade com a API atualmente publicada.
+  has_certificate: z.boolean().optional(),
+  workload_hours: z.number().nullable().optional(),
+  hours_group: hoursGroupSchema.nullable().optional(),
+  max_participants: z.number().nullable().optional(),
+  subscribers_count: z.number().int().nonnegative().optional(),
+  available_spots: z.number().int().nonnegative().nullable().optional(),
+  is_full: z.boolean().optional(),
+});
+
+export const eventSubscriberSchema = z.object({
+  user_id: z.number(),
+  name: z.string(),
+  // O backend permite sobrenome nulo para cadastros sem esse dado.
+  last_name: z.string().nullable(),
+  email: z.string().email(),
+  ra: z.string().nullable(),
+  role: userRoleSchema,
+  subscribed_at: z.string(),
 });
 
 export const subscriptionOutSchema = z.object({
@@ -79,6 +104,8 @@ export type Participant = z.infer<typeof participantSchema>;
 
 export type SubscriptionOut = z.infer<typeof subscriptionOutSchema>;
 
+export type EventSubscriber = z.infer<typeof eventSubscriberSchema>;
+
 export type TokenPayload = z.infer<typeof tokenPayloadSchema>;
 
 export type AuthSession = {
@@ -94,6 +121,10 @@ export type EventCreateIn = {
   event_location: string;
   description: string;
   attendance_mode?: AttendanceMode;
+  has_certificate?: boolean;
+  workload_hours?: number | null;
+  hours_group?: HoursGroup | null;
+  max_participants?: number | null;
 };
 
 export type EventUpdateIn = Partial<EventCreateIn>;
@@ -109,7 +140,7 @@ export type UserCreateIn = {
   password: string;
 };
 
-export type UserUpdateIn = UserCreateIn;
+export type UserUpdateIn = Omit<UserCreateIn, 'password'> & { password?: string };
 
 export type UserLoginIn = {
   email: string;

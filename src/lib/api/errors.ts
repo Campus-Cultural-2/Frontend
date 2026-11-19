@@ -73,7 +73,9 @@ export function getFriendlyApiMessage(
     case 'image_storage_unavailable':
       return 'Não foi possível salvar a imagem agora. Salve o evento sem banner ou tente mais tarde.';
     case 'permission_denied':
-      return 'Você não tem permissão para fazer isso.';
+      return /\/events\/\d+\/subscribers$/.test(path)
+        ? 'Somente o professor que organizou este evento ou um administrador pode consultar os participantes.'
+        :  'Você não tem permissão para fazer isso.';
     default:
       return null;
   }

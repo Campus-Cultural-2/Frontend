@@ -19,6 +19,8 @@ import {
 import { DateType } from 'react-native-ui-datepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import EventCreationWizard from '@/src/view/screens/events/EventCreationWizard';
+
 import { AppToast } from '@/components/ui/app-toast';
 import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 import {
@@ -28,6 +30,7 @@ import {
   EventCreateIn,
   EventUpdateIn,
   getEvent,
+  getValidAuthSession,
   isAuthSessionError,
   updateEvent,
 } from '@/src/lib/api/campus';
@@ -98,6 +101,16 @@ const requiredFields: (keyof Pick<EventForm, 'name' | 'dateTime' | 'endDateTime'
 ];
 
 export default function NewEventScreen() {
+  const { eventId } = useLocalSearchParams<{ eventId?: string }>();
+
+  if (!eventId) {
+    return <EventCreationWizard/>;
+  }
+
+  return <ExistingEventEditorScreen />;
+}
+
+function ExistingEventEditorScreen() {
   const router = useRouter();
   const { eventId } = useLocalSearchParams<{ eventId?: string }>();
   const editingEventId = eventId ? Number(eventId) : null;
@@ -120,6 +133,8 @@ export default function NewEventScreen() {
   const [isDescriptionFocused, setIsDescriptionFocused] = useState(false);
   const [isLoadingEvent, setIsLoadingEvent] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCheckingPermission, setIsCheckingPermission] = useState(true);
+  const [hasEventPermission, setHasEventPermission] = useState(false);
 
   const isEditing = Number.isFinite(editingEventId);
   const descriptionReachedLimit = form.description.length >= DESCRIPTION_LIMIT;
@@ -146,6 +161,42 @@ export default function NewEventScreen() {
       selectedEndDate,
     ],
   );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function checkPermission() {
+      try {
+        const session = await getValidAuthSession();
+        if (!isMounted) return;
+
+        if (session.payload.role !== 'professor') {
+          router.replace('/calendario' as never);
+          return;
+        }
+
+        setHasEventPermission(true);
+      } catch (permissionError) {
+        if (isAuthSessionError(permissionError)) {
+          await clearAuthToken();
+          router.replace('/login' as never);
+        } else {
+          showToast({
+            message: 'Não foi possível verificar suas permissões para gerenciar eventos.',
+            type: 'error',
+          });
+          router.replace('/calendario' as never);
+        }
+      } finally {
+        if (isMounted) setIsCheckingPermission(false);
+      }
+    }
+
+    void checkPermission();
+    return () => {
+      isMounted = false;
+    };
+  }, [router, showToast]);
 
   useEffect(() => {
     async function loadEventForEditing() {
@@ -248,6 +299,17 @@ export default function NewEventScreen() {
       imageUri: asset.uri,
       imageMimeType: asset.mimeType ?? 'image/jpeg',
       imageBase64: asset.base64 ?? '',
+    }));
+  }
+
+  // Ao salvar, o evento fica sem imagem e o backend apaga a antiga da nuvem.
+  function removeImage() {
+    setForm((current) => ({
+      ...current,
+      imageName: '',
+      imageUri: '',
+      imageMimeType: '',
+      imageBase64: '',
     }));
   }
 
@@ -385,7 +447,10 @@ export default function NewEventScreen() {
           message: 'As alterações foram salvas.',
           type: 'success',
         });
-        setTimeout(() => router.replace('/perfil' as never), 1100);
+        setTimeout(
+          () => router.replace({ pathname: '/calendario', params: { newEventDate: payload.event_datetime } } as never),
+          1100,
+        );
       } else {
         await createEvent(payload);
         discardDraft();
@@ -393,6 +458,10 @@ export default function NewEventScreen() {
           message: 'O novo evento foi criado como ativo.',
           type: 'success',
         });
+        setTimeout(
+          () => router.replace({ pathname: '/calendario', params: { newEventDate: payload.event_datetime } } as never),
+          1100,
+        );
       }
     } catch (error) {
       if (isAuthSessionError(error)) {
@@ -429,7 +498,10 @@ export default function NewEventScreen() {
         message: 'Evento excluído com sucesso.',
         type: 'success',
       });
-      setTimeout(() => router.replace('/perfil' as never), 900);
+      setTimeout(
+        () => router.replace({ pathname: '/calendario', params: selectedDate ? { newEventDate: selectedDate.toISOString() } : {} } as never),
+        900,
+      );
     } catch (error) {
       if (isAuthSessionError(error)) {
         await clearAuthToken();
@@ -496,14 +568,26 @@ export default function NewEventScreen() {
     }
   }
 
+  if (isCheckingPermission || !hasEventPermission) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.permissionLoading}>
+          <ActivityIndicator size="large" color="#FFCC00" />
+          <Text style={styles.loadingEventText}>Verificando permissões...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
-        behavior={Platform.select({ ios: 'padding', default: undefined })}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           showsVerticalScrollIndicator={false}>
           <Animatable.View animation="fadeInLeft" duration={360} useNativeDriver>
             <Pressable
@@ -550,7 +634,22 @@ export default function NewEventScreen() {
             </Pressable>
           </Animatable.View>
 
-          {form.imageName ? <Text style={styles.imageName}>{form.imageName}</Text> : null}
+          {form.imageUri ? (
+            <View style={styles.imageInfoRow}>
+              <Text numberOfLines={1} style={styles.imageName}>
+                {form.imageName}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Remover imagem do evento"
+                disabled={isSaving}
+                onPress={removeImage}
+                style={styles.removeImageButton}>
+                <MaterialIcons name="delete-outline" size={15} color="#B42318" />
+                <Text style={styles.removeImageText}>Remover imagem</Text>
+              </Pressable>
+            </View>
+          ) : null}
 
           <Animatable.View
             animation="fadeInUp"
@@ -929,6 +1028,12 @@ function areEventFormsEqual(left: EventForm, right: EventForm) {
 }
 
 const styles = StyleSheet.create({
+  permissionLoading: {
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+    justifyContent: 'center',
+  },
   safeArea: {
     flex: 1,
     backgroundColor: '#FAFAFA',
@@ -1002,10 +1107,32 @@ const styles = StyleSheet.create({
     height: '100%',
     width: '100%',
   },
+  imageInfoRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
   imageName: {
     color: '#7A7F87',
+    flex: 1,
     fontSize: 11,
-    marginBottom: 16,
+  },
+  removeImageButton: {
+    alignItems: 'center',
+    backgroundColor: '#FEE4E2',
+    borderRadius: 6,
+    flexDirection: 'row',
+    gap: 6,
+    height: 30,
+    paddingHorizontal: 10,
+  },
+  removeImageText: {
+    color: '#B42318',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
   loadingEventBox: {
     alignItems: 'center',
