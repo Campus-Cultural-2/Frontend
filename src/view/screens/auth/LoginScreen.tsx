@@ -17,7 +17,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppToast } from '@/components/ui/app-toast';
-import { hasAuthToken, login } from '@/src/lib/api/campus';
+import {
+  hasAuthToken,
+  isEmailNotVerifiedError,
+  login,
+  requestEmailVerification,
+} from '@/src/lib/api/campus';
+import { setPendingEmailVerification } from '@/src/lib/auth/pendingEmailVerification';
 import { useAppToast } from '@/src/view/hooks/useAppToast';
 
 const logoUtf = require('@/assets/logoUTF.png');
@@ -58,6 +64,15 @@ export default function LoginScreen() {
       await login({ email: normalizedEmail, password });
       router.replace('/(tabs)' as never);
     } catch (error) {
+      if (isEmailNotVerifiedError(error)) {
+        // Senha certa, e-mail ainda nao confirmado. Pede um codigo novo, ja
+        // que o do cadastro pode ter vencido, e leva para a tela do codigo.
+        setPendingEmailVerification(normalizedEmail);
+        await requestEmailVerification({ email: normalizedEmail }).catch(() => undefined);
+        router.push('/verificar-email' as never);
+        return;
+      }
+
       showToast({
         message: error instanceof Error ? error.message : 'Verifique seus dados e tente novamente.',
         type: 'error',

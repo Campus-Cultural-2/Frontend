@@ -2,6 +2,8 @@ import { saveAuthToken } from '@/src/lib/auth/token';
 
 import { requestPublic } from './client';
 import {
+  EmailVerificationConfirmIn,
+  EmailVerificationRequestIn,
   PasswordResetConfirmIn,
   PasswordResetRequestIn,
   tokenOutSchema,
@@ -37,3 +39,20 @@ export async function confirmPasswordReset(payload: PasswordResetConfirmIn) {
     method: 'POST',
   });
 }
+
+// Reenvia o codigo de confirmacao do e-mail. Como na recuperacao de senha, a
+// API responde igual para qualquer e-mail.
+export async function requestEmailVerification(payload: EmailVerificationRequestIn) {
+  await requestPublic('/users/verify-email/request', {
+    body: JSON.stringify(payload),
+    method: 'POST',
+  });
+}
+
+export async function confirmEmailVerification(payload: EmailVerificationConfirmIn) {
+  await requestPublic('/users/verify-email/confirm', {
+    body: JSON.stringify(payload),
+    method: 'POST',
+  });
+}
+

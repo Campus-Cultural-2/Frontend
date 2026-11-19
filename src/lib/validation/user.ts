@@ -8,6 +8,13 @@ export function isInstitutionalEmail(value: string) {
   return /^[a-z0-9._%+\-]+@(alunos\.)?utfpr\.edu\.br$/i.test(value.trim());
 }
 
+// E-mail de servidor: @utfpr.edu.br, sem o "alunos.". Professor so pode se
+// cadastrar com ele. A API confere a mesma regra e ainda exige confirmar o
+// e-mail, entao isto aqui so adianta o aviso para o usuario.
+export function isStaffEmail(value: string) {
+  return /^[a-z0-9._%+\-]+@utfpr\.edu\.br$/i.test(value.trim());
+}
+
 export function getPasswordError(value: string) {
   if (value.length < 8) {
     return 'A senha deve ter pelo menos 8 caracteres';

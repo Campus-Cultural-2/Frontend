@@ -157,6 +157,15 @@ export type PasswordResetConfirmIn = {
   new_password: string;
 };
 
+export type EmailVerificationRequestIn = {
+  email: string;
+};
+
+export type EmailVerificationConfirmIn = {
+  email: string;
+  code: string;
+};
+
 export type TokenOut = z.infer<typeof tokenOutSchema>;
 
 export type HealthOut = z.infer<typeof healthOutSchema>;
