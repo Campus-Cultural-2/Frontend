@@ -80,6 +80,26 @@ Após mudar o `.env`, reinicie o Metro (`Ctrl+C` e `npm start`) ou use `npm run 
 | `npm run build:android:preview` | APK via EAS (nuvem) |
 | `npm run build:android:production` | AAB produção (EAS) |
 
+## Presença nos eventos
+
+Ao criar ou editar um evento, o professor informa o **horário de encerramento** e
+escolhe como a presença é confirmada:
+
+- **Sem confirmação**: todos os inscritos contam como presentes.
+- **Pelo professor**: em **Calendário → Gerenciar presença**, o professor marca os alunos na lista ou
+  lê o QR code do ingresso de cada aluno.
+- **Pelo aluno**: o professor mostra o QR code do evento (em **Gerenciar presença**) e o aluno lê
+  em **Confirmar presença**, durante o evento.
+
+O aluno inscrito abre **Confirmar presença** no cartão do evento no Calendário. As telas ficam
+em `src/view/screens/events/` (`AttendanceManageScreen`, `MyAttendanceScreen`), nas rotas
+`/presenca` e `/meu-ingresso`.
+
+A leitura do QR usa a câmera (`expo-camera`) e funciona no Expo Go em celular físico, mas não
+no navegador nem em alguns emuladores. Em build nativa, rode `expo prebuild` ou gere um novo
+build do EAS depois de instalar a dependência, para a permissão de câmera valer. O backend
+precisa estar na versão com `event_end_datetime`, senão a criação de eventos é recusada.
+
 ## Desenvolvimento
 
 ```bash
@@ -160,11 +180,11 @@ npm run check && npm run export:web
 app/                         rotas (Expo Router); mantenha wrappers pequenos
 src/view/screens/            telas completas por fluxo
 src/view/hooks/              hooks usados pela camada visual
-components/                  UI compartilhada entre telas
+components/                  UI compartilhada entre telas (inclui qr-code e qr-scanner-modal)
 src/lib/api/campus.ts        fachada publica da API usada pelas telas
 src/lib/api/auth.ts          endpoints de autenticacao
 src/lib/api/users.ts         endpoints de usuarios e perfil
-src/lib/api/events.ts        endpoints de eventos
+src/lib/api/events.ts        endpoints de eventos, inscricoes e presenca
 src/lib/api/client.ts        cliente HTTP autenticado/publico
 src/lib/api/core.ts          fetch, base URL e tratamento de erros HTTP
 src/lib/api/session.ts       sessao, token JWT e refresh
