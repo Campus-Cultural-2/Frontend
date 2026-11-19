@@ -379,6 +379,14 @@ export default function ProfileScreen() {
                           } as never),
                         )
                       }
+                      onOpenAttendance={() =>
+                        requestLeave(() =>
+                          router.push({
+                            pathname: '/presenca',
+                            params: { eventId: String(event.id) },
+                          } as never),
+                        )
+                      }
                     />
                   ))
                 ) : (
@@ -457,10 +465,12 @@ export default function ProfileScreen() {
 function EditableEventCard({
   event,
   index,
+  onOpenAttendance,
   onSelect,
 }: {
   event: CampusEvent;
   index: number;
+  onOpenAttendance: () => void;
   onSelect: () => void;
 }) {
   const eventDate = new Date(event.event_datetime);
@@ -488,7 +498,7 @@ function EditableEventCard({
           <View style={styles.eventMeta}>
             <View style={styles.eventMetaItem}>
               <MaterialIcons name="schedule" size={12} color="#6F7782" />
-              <Text style={styles.eventMetaText}>{formatEventTime(eventDate)}</Text>
+              <Text style={styles.eventMetaText}>{formatEventTime(eventDate, event.event_end_datetime)}</Text>
             </View>
             <View style={styles.eventMetaItem}>
               <MaterialIcons name="place" size={12} color="#6F7782" />
@@ -498,6 +508,14 @@ function EditableEventCard({
             </View>
           </View>
         </View>
+      </Pressable>
+      <Pressable
+        accessibilityLabel={`Presença do evento ${event.name}`}
+        accessibilityRole="button"
+        onPress={onOpenAttendance}
+        style={{ alignItems: 'center', borderTopColor: '#EFEFEF', borderTopWidth: 1, flexDirection: 'row', gap: 6, padding: 10 }}>
+        <MaterialIcons name="how-to-reg" size={16} color="#111111" />
+        <Text style={{ color: '#111111', fontSize: 12, fontWeight: '700' }}>Presença</Text>
       </Pressable>
     </Animatable.View>
   );
@@ -563,8 +581,8 @@ function roleLabel(role: CurrentUser['role']) {
   return labels[role];
 }
 
-function formatEventTime(value: Date) {
-  return formatCampusTimeRange(value);
+function formatEventTime(value: Date, end: string) {
+  return formatCampusTimeRange(value, end);
 }
 
 function validateProfileData(user: CurrentUser) {

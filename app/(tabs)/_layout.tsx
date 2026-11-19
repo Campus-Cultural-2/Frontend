@@ -62,6 +62,8 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen name="novo-evento" options={{ href: null }} />
+      <Tabs.Screen name="presenca" options={{ href: null }} />
+      <Tabs.Screen name="meu-ingresso" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -342,6 +342,8 @@ function AgendaCard({
   index: number;
   onToggleEnrollment: () => void;
 }) {
+  const router = useRouter();
+
   return (
     <Animatable.View
       animation="fadeInUp"
@@ -369,7 +371,7 @@ function AgendaCard({
         <View style={styles.agendaMeta}>
           <View style={styles.metaItem}>
             <MaterialIcons name="schedule" size={13} color="#6F7782" />
-            <Text style={styles.agendaMetaText}>{formatCampusTimeRange(event.event_datetime)}</Text>
+            <Text style={styles.agendaMetaText}>{formatCampusTimeRange(event.event_datetime, event.event_end_datetime)}</Text>
           </View>
           <View style={styles.metaItem}>
             <MaterialIcons name="place" size={13} color="#6F7782" />
@@ -378,6 +380,23 @@ function AgendaCard({
             </Text>
           </View>
         </View>
+
+        {enrolled && event.attendance_mode !== 'none' ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              router.push({
+                pathname: '/meu-ingresso',
+                params: { eventId: String(event.id) },
+              } as never)
+            }
+            style={{ alignItems: 'center', flexDirection: 'row', gap: 6, marginTop: 8 }}>
+            <MaterialIcons name="how-to-reg" size={16} color="#111111" />
+            <Text style={{ color: '#111111', fontSize: 12, fontWeight: '700' }}>
+              Confirmar presença
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     </Animatable.View>
   );
