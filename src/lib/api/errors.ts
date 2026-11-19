@@ -50,6 +50,8 @@ export function getFriendlyApiMessage(
       return details?.reason === 'ended'
         ? 'Este evento já foi encerrado. Não é mais possível confirmar presença.'
         : 'O evento ainda não começou. A confirmação de presença abre no horário de início.';
+    case 'invalid_password_reset_code':
+      return 'Código inválido ou expirado. Confira o e-mail ou peça um novo código.';
     case 'invalid_attendance_code':
       return 'Código inválido. Confira se o QR code é deste evento e tente novamente.';
     case 'attendance_mode_mismatch':

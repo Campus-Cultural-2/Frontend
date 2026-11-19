@@ -147,6 +147,16 @@ export type UserLoginIn = {
   password: string;
 };
 
+export type PasswordResetRequestIn = {
+  email: string;
+};
+
+export type PasswordResetConfirmIn = {
+  email: string;
+  code: string;
+  new_password: string;
+};
+
 export type TokenOut = z.infer<typeof tokenOutSchema>;
 
 export type HealthOut = z.infer<typeof healthOutSchema>;

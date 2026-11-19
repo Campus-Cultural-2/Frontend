@@ -21,6 +21,7 @@ import { AppToast } from '@/components/ui/app-toast';
 import { login, registerUser, UserRole } from '@/src/lib/api/campus';
 import { CampusDatePicker } from '@/components/ui/campus-date-picker';
 import { useAppToast } from '@/src/view/hooks/useAppToast';
+import { getPasswordError, isInstitutionalEmail } from '@/src/lib/validation/user';
 
 type RegisterRole = Exclude<UserRole, 'admin'>;
 
@@ -510,26 +511,6 @@ function formatApiDate(value: Date) {
 
 function hasOnlyLetters(value: string) {
   return /^[A-Za-zÀ-ÖØ-öø-ÿ\s]+$/.test(value.trim());
-}
-
-function isInstitutionalEmail(value: string) {
-  return /^[a-z0-9._%+\-]+@(alunos\.)?utfpr\.edu\.br$/i.test(value.trim());
-}
-
-function getPasswordError(value: string) {
-  if (value.length < 8) {
-    return 'A senha deve ter pelo menos 8 caracteres';
-  }
-
-  if (!/[0-9]/.test(value)) {
-    return 'A senha deve conter pelo menos um número';
-  }
-
-  if (!/[^A-Za-z0-9]/.test(value)) {
-    return 'A senha deve conter pelo menos um caractere especial';
-  }
-
-  return null;
 }
 
 const styles = StyleSheet.create({

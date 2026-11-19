@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import * as Animatable from 'react-native-animatable';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -15,11 +16,29 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { confirmPasswordReset, requestPasswordReset } from '@/src/lib/api/campus';
+import { getPasswordError, isInstitutionalEmail } from '@/src/lib/validation/user';
+
+// O backend aceita um envio por e-mail a cada minuto. O app espera o mesmo
+// tempo antes de deixar pedir outro, para nao prometer um e-mail que nao vai.
+const RESEND_COOLDOWN_MS = 60_000;
+
+// O codigo enviado por e-mail tem 8 caracteres e vale por 15 minutos.
+const CODE_LENGTH = 8;
+
+type Step = 'email' | 'code';
+
 type FeedbackModalState = {
   visible: boolean;
   type: 'success' | 'error';
   title: string;
   message: string;
+};
+
+type CodeFormErrors = {
+  code?: string;
+  password?: string;
+  confirmPassword?: string;
 };
 
 const initialModal: FeedbackModalState = {
@@ -29,46 +48,173 @@ const initialModal: FeedbackModalState = {
   message: '',
 };
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error && error.message
+    ? error.message
+    : 'Não foi possível concluir a solicitação. Tente novamente.';
+}
+
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
-  const [isEmailFocused, setIsEmailFocused] = useState(false);
+  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [codeErrors, setCodeErrors] = useState<CodeFormErrors>({});
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lastSentAt, setLastSentAt] = useState<number | null>(null);
+  const [resendNotice, setResendNotice] = useState<string | null>(null);
   const [modal, setModal] = useState<FeedbackModalState>(initialModal);
 
   function validateEmail() {
-    const normalizedEmail = email.trim().toLowerCase();
+    // So trim, sem minusculas: o login e o cadastro tratam o e-mail do mesmo
+    // jeito, e a busca no backend diferencia maiusculas.
+    const normalizedEmail = email.trim();
 
     if (!normalizedEmail) {
       setEmailError('O e-mail é obrigatório.');
-      return false;
+      return null;
     }
 
-    if (!/^[a-z0-9._%+\-]+@(alunos\.)?utfpr\.edu\.br$/.test(normalizedEmail)) {
+    if (!isInstitutionalEmail(normalizedEmail)) {
       setEmailError('Use seu e-mail institucional da UTFPR.');
-      return false;
+      return null;
     }
 
     setEmailError(null);
-    return true;
+    return normalizedEmail;
   }
 
-  function handleSend() {
-    if (!validateEmail()) {
+  async function sendCode(normalizedEmail: string) {
+    setIsSubmitting(true);
+
+    try {
+      await requestPasswordReset({ email: normalizedEmail });
+      setLastSentAt(Date.now());
+      setResendNotice(null);
+      setStep('code');
+    } catch (error) {
+      setModal({
+        visible: true,
+        type: 'error',
+        title: 'Não foi possível enviar',
+        message: getErrorMessage(error),
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function handleSendCode() {
+    const normalizedEmail = validateEmail();
+
+    if (normalizedEmail) {
+      void sendCode(normalizedEmail);
+    }
+  }
+
+  function handleResend() {
+    const elapsed = lastSentAt === null ? Infinity : Date.now() - lastSentAt;
+
+    if (elapsed < RESEND_COOLDOWN_MS) {
+      const seconds = Math.ceil((RESEND_COOLDOWN_MS - elapsed) / 1000);
+      setResendNotice(`Aguarde ${seconds}s para pedir outro código.`);
       return;
     }
 
-    setModal({
-      visible: true,
-      type: 'success',
-      title: 'E-mail enviado',
-      message: 'Se esse e-mail estiver cadastrado, você receberá as instruções em breve.',
-    });
+    void sendCode(email.trim());
+  }
+
+  function validateCodeForm() {
+    const nextErrors: CodeFormErrors = {};
+    const normalizedCode = code.trim().toUpperCase();
+
+    if (normalizedCode.length !== CODE_LENGTH) {
+      nextErrors.code = `O código tem ${CODE_LENGTH} caracteres.`;
+    }
+
+    const passwordError = getPasswordError(password);
+
+    if (passwordError) {
+      nextErrors.password = passwordError;
+    }
+
+    if (!confirmPassword) {
+      nextErrors.confirmPassword = 'Confirme a nova senha.';
+    } else if (password !== confirmPassword) {
+      nextErrors.confirmPassword = 'As senhas não conferem';
+    }
+
+    setCodeErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0 ? normalizedCode : null;
+  }
+
+  async function handleResetPassword() {
+    const normalizedCode = validateCodeForm();
+
+    if (!normalizedCode) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      await confirmPasswordReset({
+        email: email.trim(),
+        code: normalizedCode,
+        new_password: password,
+      });
+      setModal({
+        visible: true,
+        type: 'success',
+        title: 'Senha redefinida',
+        message: 'Sua senha foi alterada. Entre com a nova senha.',
+      });
+    } catch (error) {
+      setModal({
+        visible: true,
+        type: 'error',
+        title: 'Não foi possível redefinir',
+        message: getErrorMessage(error),
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function closeModal() {
-    setModal(initialModal);
-    router.replace('/login' as never);
+    const succeeded = modal.type === 'success';
+    // So esconde, mantendo titulo, mensagem e cor. Voltar para o estado
+    // inicial aqui trocaria o conteudo antes do fade de saida terminar, e o
+    // modal vermelho de erro piscaria como um modal verde vazio ao fechar.
+    setModal((current) => ({ ...current, visible: false }));
+
+    if (succeeded) {
+      router.replace('/login' as never);
+    }
+  }
+
+  function handleBack() {
+    if (step === 'code') {
+      setStep('email');
+      setCodeErrors({});
+      return;
+    }
+
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/login' as never);
+    }
+  }
+
+  function clearCodeError(field: keyof CodeFormErrors) {
+    if (codeErrors[field]) {
+      setCodeErrors((current) => ({ ...current, [field]: undefined }));
+    }
   }
 
   return (
@@ -85,7 +231,7 @@ export default function ForgotPasswordScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Voltar"
-              onPress={() => (router.canGoBack() ? router.back() : router.replace('/login' as never))}
+              onPress={handleBack}
               style={styles.header}>
               <Ionicons name="arrow-back" size={20} color="#FFC107" />
               <Text style={styles.headerText}>Voltar</Text>
@@ -101,71 +247,211 @@ export default function ForgotPasswordScreen() {
             <Text style={styles.badgeText}>Segurança</Text>
           </Animatable.View>
 
-          <Animatable.Text
-            animation="fadeInUp"
-            delay={140}
-            duration={420}
-            style={styles.title}
-            useNativeDriver>
-            Esqueceu{'\n'}sua senha?
-          </Animatable.Text>
+          {step === 'email' ? (
+            <Animatable.View key="email" animation="fadeInUp" duration={420} useNativeDriver>
+              <Text style={styles.title}>Esqueceu{'\n'}sua senha?</Text>
+              <Text style={styles.description}>
+                Insira o e-mail cadastrado. Vamos enviar um código para você criar uma nova senha.
+              </Text>
 
-          <Animatable.Text
-            animation="fadeInUp"
-            delay={200}
-            duration={420}
-            style={styles.description}
-            useNativeDriver>
-            Insira o e-mail cadastrado para receber as instruções de recuperação.
-          </Animatable.Text>
+              <View style={styles.inputWrapper}>
+                <Text style={styles.inputLabel}>
+                  E-mail <Text style={styles.requiredAsterisk}>*</Text>
+                </Text>
+                <View
+                  style={[
+                    styles.inputContainer,
+                    focusedField === 'email' ? styles.inputFocused : null,
+                    emailError ? styles.inputError : null,
+                  ]}>
+                  <TextInput
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    keyboardType="email-address"
+                    onBlur={() => setFocusedField(null)}
+                    onChangeText={(value) => {
+                      setEmail(value);
 
-          <Animatable.View
-            animation="fadeInUp"
-            delay={260}
-            duration={420}
-            style={styles.inputWrapper}
-            useNativeDriver>
-            <Text style={styles.inputLabel}>
-              E-mail <Text style={styles.requiredAsterisk}>*</Text>
-            </Text>
-            <View
-              style={[
-                styles.inputContainer,
-                isEmailFocused ? styles.inputFocused : null,
-                emailError ? styles.inputError : null,
-              ]}>
-              <TextInput
-                autoCapitalize="none"
-                keyboardType="email-address"
-                onBlur={() => setIsEmailFocused(false)}
-                onChangeText={(value) => {
-                  setEmail(value);
+                      if (emailError) {
+                        setEmailError(null);
+                      }
+                    }}
+                    onFocus={() => setFocusedField('email')}
+                    placeholder="usuario@utfpr.edu.br"
+                    placeholderTextColor="#9E9E9E"
+                    style={styles.textInput}
+                    value={email}
+                  />
+                </View>
+                {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+              </View>
 
-                  if (emailError) {
-                    setEmailError(null);
-                  }
-                }}
-                onFocus={() => setIsEmailFocused(true)}
-                placeholder="usuario@utfpr.edu.br"
-                placeholderTextColor="#9E9E9E"
-                style={styles.textInput}
-                value={email}
+              <PrimaryButton
+                disabled={isSubmitting}
+                label="Enviar código"
+                loading={isSubmitting}
+                onPress={handleSendCode}
               />
-            </View>
-            {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
-          </Animatable.View>
+            </Animatable.View>
+          ) : (
+            <Animatable.View key="code" animation="fadeInUp" duration={420} useNativeDriver>
+              <Text style={styles.title}>Digite o{'\n'}código</Text>
+              <Text style={styles.description}>
+                Se <Text style={styles.descriptionEmphasis}>{email.trim()}</Text> estiver
+                cadastrado, enviamos um código de {CODE_LENGTH} caracteres. Ele vale por 15
+                minutos. Confira também a caixa de spam.
+              </Text>
 
-          <Animatable.View animation="fadeInUp" delay={320} duration={420} useNativeDriver>
-            <Pressable accessibilityRole="button" onPress={handleSend} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>Enviar</Text>
-              <Ionicons name="arrow-forward" size={20} color="#000000" />
-            </Pressable>
-          </Animatable.View>
+              <Field
+                autoCapitalize="characters"
+                error={codeErrors.code}
+                focused={focusedField === 'code'}
+                label="Código"
+                maxLength={CODE_LENGTH}
+                onBlur={() => setFocusedField(null)}
+                onChangeText={(value) => {
+                  setCode(value);
+                  clearCodeError('code');
+                }}
+                onFocus={() => setFocusedField('code')}
+                placeholder="ABCD2345"
+                value={code}
+              />
+
+              <Field
+                error={codeErrors.password}
+                focused={focusedField === 'password'}
+                label="Nova senha"
+                onBlur={() => setFocusedField(null)}
+                onChangeText={(value) => {
+                  setPassword(value);
+                  clearCodeError('password');
+                }}
+                onFocus={() => setFocusedField('password')}
+                placeholder="Mínimo de 8 caracteres"
+                secureTextEntry
+                value={password}
+              />
+
+              <Field
+                error={codeErrors.confirmPassword}
+                focused={focusedField === 'confirmPassword'}
+                label="Confirmar nova senha"
+                onBlur={() => setFocusedField(null)}
+                onChangeText={(value) => {
+                  setConfirmPassword(value);
+                  clearCodeError('confirmPassword');
+                }}
+                onFocus={() => setFocusedField('confirmPassword')}
+                placeholder="Repita a nova senha"
+                secureTextEntry
+                value={confirmPassword}
+              />
+
+              <PrimaryButton
+                disabled={isSubmitting}
+                label="Redefinir senha"
+                loading={isSubmitting}
+                onPress={() => void handleResetPassword()}
+              />
+
+              <Pressable
+                accessibilityRole="button"
+                disabled={isSubmitting}
+                onPress={handleResend}
+                style={styles.secondaryAction}>
+                <Text style={styles.secondaryActionText}>Não recebeu? Enviar outro código</Text>
+              </Pressable>
+              {resendNotice ? <Text style={styles.noticeText}>{resendNotice}</Text> : null}
+            </Animatable.View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
 
       <FeedbackModal modal={modal} onClose={closeModal} />
     </SafeAreaView>
+  );
+}
+
+type FieldProps = {
+  autoCapitalize?: 'none' | 'characters';
+  error?: string;
+  focused: boolean;
+  label: string;
+  maxLength?: number;
+  onBlur: () => void;
+  onChangeText: (value: string) => void;
+  onFocus: () => void;
+  placeholder: string;
+  secureTextEntry?: boolean;
+  value: string;
+};
+
+function Field({
+  autoCapitalize = 'none',
+  error,
+  focused,
+  label,
+  maxLength,
+  onBlur,
+  onChangeText,
+  onFocus,
+  placeholder,
+  secureTextEntry,
+  value,
+}: FieldProps) {
+  return (
+    <View style={styles.inputWrapper}>
+      <Text style={styles.inputLabel}>
+        {label} <Text style={styles.requiredAsterisk}>*</Text>
+      </Text>
+      <View
+        style={[
+          styles.inputContainer,
+          focused ? styles.inputFocused : null,
+          error ? styles.inputError : null,
+        ]}>
+        <TextInput
+          autoCapitalize={autoCapitalize}
+          autoCorrect={false}
+          maxLength={maxLength}
+          onBlur={onBlur}
+          onChangeText={onChangeText}
+          onFocus={onFocus}
+          placeholder={placeholder}
+          placeholderTextColor="#9E9E9E"
+          secureTextEntry={secureTextEntry}
+          style={styles.textInput}
+          value={value}
+        />
+      </View>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+    </View>
+  );
+}
+
+type PrimaryButtonProps = {
+  disabled: boolean;
+  label: string;
+  loading: boolean;
+  onPress: () => void;
+};
+
+function PrimaryButton({ disabled, label, loading, onPress }: PrimaryButtonProps) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ busy: loading, disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={[styles.primaryButton, disabled ? styles.primaryButtonDisabled : null]}>
+      <Text style={styles.primaryButtonText}>{label}</Text>
+      {loading ? (
+        <ActivityIndicator color="#000000" />
+      ) : (
+        <Ionicons name="arrow-forward" size={20} color="#000000" />
+      )}
+    </Pressable>
   );
 }
 
@@ -313,6 +599,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '900',
     textTransform: 'uppercase',
+  },
+  descriptionEmphasis: {
+    color: '#1A1A1A',
+    fontWeight: '700',
+  },
+  primaryButtonDisabled: {
+    opacity: 0.6,
+  },
+  secondaryAction: {
+    alignSelf: 'center',
+    marginTop: 24,
+    paddingVertical: 8,
+  },
+  secondaryActionText: {
+    color: '#8A6D00',
+    fontSize: 14,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+  noticeText: {
+    color: '#555555',
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'center',
   },
   modalOverlay: {
     alignItems: 'center',
