@@ -27,6 +27,12 @@ export class ApiError extends Error {
   }
 }
 
+// O login responde isto quando a senha esta certa mas o e-mail ainda nao foi
+// confirmado. As telas de login e de cadastro usam para ir para a tela do codigo.
+export function isEmailNotVerifiedError(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === 'email_not_verified';
+}
+
 type ApiErrorBody = { code?: unknown; details?: unknown; message?: unknown };
 
 export function parseApiErrorBody(text: string): ApiErrorBody | null {
@@ -50,6 +56,16 @@ export function getFriendlyApiMessage(
       return details?.reason === 'ended'
         ? 'Este evento já foi encerrado. Não é mais possível confirmar presença.'
         : 'O evento ainda não começou. A confirmação de presença abre no horário de início.';
+    case 'email_not_verified':
+      return 'Confirme seu e-mail para entrar. Enviamos um código para ele.';
+    case 'invalid_email_verification_code':
+      return 'Código inválido ou expirado. Confira o e-mail ou peça um novo código.';
+    case 'email_domain_not_allowed':
+      return details?.role === 'professor'
+        ? 'Professor precisa usar o e-mail de servidor (@utfpr.edu.br).'
+        : 'Use seu e-mail institucional da UTFPR.';
+    case 'invalid_password_reset_code':
+      return 'Código inválido ou expirado. Confira o e-mail ou peça um novo código.';
     case 'invalid_attendance_code':
       return 'Código inválido. Confira se o QR code é deste evento e tente novamente.';
     case 'attendance_mode_mismatch':
