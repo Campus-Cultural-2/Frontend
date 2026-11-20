@@ -1,4 +1,3 @@
-
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Tabs, useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
@@ -109,6 +108,31 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen
+        name="certificados-participantes"
+        options={{ href: null }}
+      />
+
+      <Tabs.Screen
+        name="certificados-configurar"
+        options={{ href: null }}
+      />
+
+      <Tabs.Screen
+        name="certificados-resultado"
+        options={{ href: null }}
+      />
+
+      <Tabs.Screen
+        name="evento-detalhe"
+        options={{ href: null }}
+      />
+
+      <Tabs.Screen
+        name="certificado-detalhe"
+        options={{ href: null }}
+      />
+
+      <Tabs.Screen
         name="perfil"
         options={{
           title: 'Perfil',
@@ -142,6 +166,8 @@ export default function TabsLayout() {
         name="novo-evento"
         options={{ href: null }}
       />
+      <Tabs.Screen name="presenca" options={{ href: null }} />
+      <Tabs.Screen name="meu-ingresso" options={{ href: null }} />
     </Tabs>
   );
 }

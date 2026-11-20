@@ -26,6 +26,7 @@ import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 import {
   createEvent,
   deleteEvent,
+  AttendanceMode,
   EventCreateIn,
   EventUpdateIn,
   getEvent,
@@ -49,6 +50,24 @@ import { useAppToast } from '@/src/view/hooks/useAppToast';
 
 const DESCRIPTION_LIMIT = 500;
 
+const attendanceOptions: { description: string; label: string; value: AttendanceMode }[] = [
+  {
+    description: 'Todos os inscritos contam como presentes.',
+    label: 'Sem confirmação',
+    value: 'none',
+  },
+  {
+    description: 'Você confirma na lista ou lendo o QR code de cada aluno.',
+    label: 'Pelo professor',
+    value: 'professor',
+  },
+  {
+    description: 'O aluno lê o código do evento para confirmar.',
+    label: 'Pelo aluno',
+    value: 'student',
+  },
+];
+
 type EventForm = {
   imageName: string;
   imageUri: string;
@@ -56,6 +75,7 @@ type EventForm = {
   imageBase64: string;
   name: string;
   dateTime: string;
+  endDateTime: string;
   place: string;
   description: string;
 };
@@ -67,13 +87,15 @@ const initialForm: EventForm = {
   imageBase64: '',
   name: '',
   dateTime: '',
+  endDateTime: '',
   place: '',
   description: '',
 };
 
-const requiredFields: (keyof Pick<EventForm, 'name' | 'dateTime' | 'place' | 'description'>)[] = [
+const requiredFields: (keyof Pick<EventForm, 'name' | 'dateTime' | 'endDateTime' | 'place' | 'description'>)[] = [
   'name',
   'dateTime',
+  'endDateTime',
   'place',
   'description',
 ];
@@ -96,6 +118,11 @@ function ExistingEventEditorScreen() {
   const [savedForm, setSavedForm] = useState<EventForm>(initialForm);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [savedSelectedDate, setSavedSelectedDate] = useState<Date | null>(null);
+  const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(null);
+  const [savedSelectedEndDate, setSavedSelectedEndDate] = useState<Date | null>(null);
+  const [pickerTarget, setPickerTarget] = useState<'start' | 'end'>('start');
+  const [attendanceMode, setAttendanceMode] = useState<AttendanceMode>('none');
+  const [savedAttendanceMode, setSavedAttendanceMode] = useState<AttendanceMode>('none');
   const [draftDate, setDraftDate] = useState<Date>(new Date());
   const [minimumSelectableDate, setMinimumSelectableDate] = useState<Date>(() => new Date());
   const [isDatePopoverVisible, setIsDatePopoverVisible] = useState(false);
@@ -119,8 +146,20 @@ function ExistingEventEditorScreen() {
     () =>
       !isLoadingEvent &&
       (!areEventFormsEqual(form, savedForm) ||
-        (selectedDate?.getTime() ?? null) !== (savedSelectedDate?.getTime() ?? null)),
-    [form, isLoadingEvent, savedForm, savedSelectedDate, selectedDate],
+        attendanceMode !== savedAttendanceMode ||
+        (selectedDate?.getTime() ?? null) !== (savedSelectedDate?.getTime() ?? null) ||
+        (selectedEndDate?.getTime() ?? null) !== (savedSelectedEndDate?.getTime() ?? null)),
+    [
+      attendanceMode,
+      form,
+      isLoadingEvent,
+      savedAttendanceMode,
+      savedForm,
+      savedSelectedDate,
+      savedSelectedEndDate,
+      selectedDate,
+      selectedEndDate,
+    ],
   );
 
   useEffect(() => {
@@ -171,6 +210,7 @@ function ExistingEventEditorScreen() {
       try {
         const event = await getEvent(editingEventId);
         const nextDate = new Date(event.event_datetime);
+        const nextEndDate = new Date(event.event_end_datetime);
         const nextForm = {
           imageName: event.image ? 'banner-atual.jpg' : '',
           imageUri: getEventImageUri(event.image) ?? '',
@@ -178,12 +218,17 @@ function ExistingEventEditorScreen() {
           imageBase64: getEventImageBase64(event.image),
           name: event.name,
           dateTime: formatDateTime(nextDate),
+          endDateTime: formatDateTime(nextEndDate),
           place: event.event_location,
           description: event.description,
         };
 
         setSelectedDate(nextDate);
         setSavedSelectedDate(nextDate);
+        setSelectedEndDate(nextEndDate);
+        setSavedSelectedEndDate(nextEndDate);
+        setAttendanceMode(event.attendance_mode);
+        setSavedAttendanceMode(event.attendance_mode);
         setForm(nextForm);
         setSavedForm(nextForm);
       } catch (error) {
@@ -270,6 +315,7 @@ function ExistingEventEditorScreen() {
 
   function openDatePicker() {
     const now = new Date();
+    setPickerTarget('start');
     setMinimumSelectableDate(now);
     setDraftDate(selectedDate && !isDateInPast(selectedDate) ? selectedDate : now);
     setIsDatePopoverVisible(true);
@@ -279,7 +325,39 @@ function ExistingEventEditorScreen() {
     openDatePicker();
   }
 
+  function openEndDatePicker() {
+    // O fim nao pode ser antes do inicio (ou de agora, se o inicio ainda nao foi escolhido).
+    const minimum = selectedDate ?? new Date();
+    setPickerTarget('end');
+    setMinimumSelectableDate(minimum);
+    setDraftDate(
+      selectedEndDate && selectedEndDate.getTime() > minimum.getTime()
+        ? selectedEndDate
+        : new Date(minimum.getTime() + 60 * 60 * 1000),
+    );
+    setIsDatePopoverVisible(true);
+  }
+
   function applyDateTimeSelection() {
+    if (pickerTarget === 'end') {
+      if (selectedDate && draftDate.getTime() <= selectedDate.getTime()) {
+        setErrors((current) => ({
+          ...current,
+          endDateTime: 'O encerramento precisa ser depois do início',
+        }));
+        showToast({
+          message: 'O horário de encerramento precisa ser depois do início.',
+          type: 'warning',
+        });
+        return;
+      }
+
+      setSelectedEndDate(draftDate);
+      updateField('endDateTime', formatDateTime(draftDate));
+      setIsDatePopoverVisible(false);
+      return;
+    }
+
     if (isDateInPast(draftDate)) {
       setErrors((current) => ({
         ...current,
@@ -294,6 +372,11 @@ function ExistingEventEditorScreen() {
 
     setSelectedDate(draftDate);
     updateField('dateTime', formatDateTime(draftDate));
+    if (selectedEndDate && selectedEndDate.getTime() <= draftDate.getTime()) {
+      // O inicio passou do fim antigo: o fim precisa ser escolhido de novo.
+      setSelectedEndDate(null);
+      updateField('endDateTime', '');
+    }
     setIsDatePopoverVisible(false);
   }
 
@@ -312,6 +395,12 @@ function ExistingEventEditorScreen() {
       nextErrors.dateTime = 'Escolha uma data e horário futuros';
     }
 
+    if (!selectedEndDate || Number.isNaN(selectedEndDate.getTime())) {
+      nextErrors.endDateTime = 'Escolha o horário de encerramento';
+    } else if (selectedDate && selectedEndDate.getTime() <= selectedDate.getTime()) {
+      nextErrors.endDateTime = 'O encerramento precisa ser depois do início';
+    }
+
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   }
@@ -328,7 +417,7 @@ function ExistingEventEditorScreen() {
     setIsSaving(true);
 
     try {
-      if (!selectedDate) {
+      if (!selectedDate || !selectedEndDate) {
         return;
       }
 
@@ -336,6 +425,8 @@ function ExistingEventEditorScreen() {
         image: form.imageBase64 || null,
         name: form.name.trim(),
         event_datetime: toCampusDateTimeIso(selectedDate),
+        event_end_datetime: toCampusDateTimeIso(selectedEndDate),
+        attendance_mode: attendanceMode,
         event_location: form.place.trim(),
         description: form.description.trim(),
       };
@@ -350,6 +441,8 @@ function ExistingEventEditorScreen() {
         await updateEvent(editingEventId, updatePayload);
         setSavedForm(form);
         setSavedSelectedDate(selectedDate);
+        setSavedSelectedEndDate(selectedEndDate);
+        setSavedAttendanceMode(attendanceMode);
         showToast({
           message: 'As alterações foram salvas.',
           type: 'success',
@@ -399,6 +492,8 @@ function ExistingEventEditorScreen() {
       await deleteEvent(editingEventId);
       setSavedForm(form);
       setSavedSelectedDate(selectedDate);
+      setSavedSelectedEndDate(selectedEndDate);
+      setSavedAttendanceMode(attendanceMode);
       showToast({
         message: 'Evento excluído com sucesso.',
         type: 'success',
@@ -429,6 +524,10 @@ function ExistingEventEditorScreen() {
     setSavedForm(initialForm);
     setSelectedDate(null);
     setSavedSelectedDate(null);
+    setSelectedEndDate(null);
+    setSavedSelectedEndDate(null);
+    setAttendanceMode('none');
+    setSavedAttendanceMode('none');
     setDraftDate(new Date());
     setIsDatePopoverVisible(false);
     setErrors({});
@@ -437,6 +536,8 @@ function ExistingEventEditorScreen() {
   function restoreSavedDraft() {
     setForm(savedForm);
     setSelectedDate(savedSelectedDate);
+    setSelectedEndDate(savedSelectedEndDate);
+    setAttendanceMode(savedAttendanceMode);
     setDraftDate(savedSelectedDate ?? new Date());
     setIsDatePopoverVisible(false);
     setErrors({});
@@ -597,6 +698,42 @@ function ExistingEventEditorScreen() {
             </View>
 
             <LabeledInput
+              active={isDatePopoverVisible && pickerTarget === 'end'}
+              editable={false}
+              error={errors.endDateTime}
+              label="Encerramento"
+              onPress={openEndDatePicker}
+              onPressIcon={openEndDatePicker}
+              onChangeText={(value) => updateField('endDateTime', value)}
+              placeholder="15 AGO · 11:00"
+              rightIcon="schedule"
+              value={form.endDateTime}
+            />
+
+            <View>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Confirmação de presença</Text>
+              </View>
+              <View style={styles.attendanceOptions}>
+                {attendanceOptions.map((option) => {
+                  const selected = option.value === attendanceMode;
+
+                  return (
+                    <Pressable
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
+                      key={option.value}
+                      onPress={() => setAttendanceMode(option.value)}
+                      style={[styles.attendanceOption, selected ? styles.attendanceOptionSelected : null]}>
+                      <Text style={styles.attendanceOptionLabel}>{option.label}</Text>
+                      <Text style={styles.attendanceOptionDescription}>{option.description}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            <LabeledInput
               error={errors.place}
               label="Local"
               onChangeText={(value) => updateField('place', value)}
@@ -708,7 +845,9 @@ function ExistingEventEditorScreen() {
             style={styles.datePopover}
             useNativeDriver>
             <View style={styles.popoverHeader}>
-              <Text style={styles.popoverTitle}>Data e horário</Text>
+              <Text style={styles.popoverTitle}>
+                {pickerTarget === 'end' ? 'Encerramento' : 'Data e horário'}
+              </Text>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Fechar seletor"
@@ -882,6 +1021,7 @@ function areEventFormsEqual(left: EventForm, right: EventForm) {
     left.imageBase64 === right.imageBase64 &&
     left.name === right.name &&
     left.dateTime === right.dateTime &&
+    left.endDateTime === right.endDateTime &&
     left.place === right.place &&
     left.description === right.description
   );
@@ -1075,6 +1215,30 @@ const styles = StyleSheet.create({
   form: {
     gap: 8,
     marginTop: 16,
+  },
+  attendanceOptions: {
+    gap: 8,
+  },
+  attendanceOption: {
+    backgroundColor: '#F3F3F4',
+    borderColor: 'transparent',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    gap: 2,
+    padding: 12,
+  },
+  attendanceOptionSelected: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#111111',
+  },
+  attendanceOptionLabel: {
+    color: '#111111',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  attendanceOptionDescription: {
+    color: '#5F6670',
+    fontSize: 12,
   },
   dateTimeActions: {
     flexDirection: 'row',

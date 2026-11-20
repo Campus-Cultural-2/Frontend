@@ -18,9 +18,11 @@ import { DateType } from 'react-native-ui-datepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppToast } from '@/components/ui/app-toast';
-import { login, registerUser, UserRole } from '@/src/lib/api/campus';
+import { isEmailNotVerifiedError, login, registerUser, UserRole } from '@/src/lib/api/campus';
+import { setPendingEmailVerification } from '@/src/lib/auth/pendingEmailVerification';
 import { CampusDatePicker } from '@/components/ui/campus-date-picker';
 import { useAppToast } from '@/src/view/hooks/useAppToast';
+import { getPasswordError, isInstitutionalEmail, isStaffEmail } from '@/src/lib/validation/user';
 
 type RegisterRole = Exclude<UserRole, 'admin'>;
 
@@ -122,6 +124,8 @@ export default function RegisterScreen() {
       nextErrors.email = 'Campo obrigatório';
     } else if (!isInstitutionalEmail(normalizedEmail)) {
       nextErrors.email = 'Use e-mail institucional da UTFPR';
+    } else if (form.role === 'professor' && !isStaffEmail(normalizedEmail)) {
+      nextErrors.email = 'Professor precisa usar o e-mail de servidor (@utfpr.edu.br)';
     }
 
     if (!form.birthDate) {
@@ -200,6 +204,14 @@ export default function RegisterScreen() {
         router.replace('/(tabs)' as never);
       }, 700);
     } catch (error) {
+      if (isEmailNotVerifiedError(error)) {
+        // A conta foi criada e o codigo ja saiu junto com o cadastro: falta
+        // so confirmar o e-mail para conseguir entrar.
+        setPendingEmailVerification(normalizedEmail);
+        router.replace('/verificar-email' as never);
+        return;
+      }
+
       showToast({
         message: error instanceof Error ? error.message : 'Verifique seus dados e tente novamente.',
         type: 'error',
@@ -510,26 +522,6 @@ function formatApiDate(value: Date) {
 
 function hasOnlyLetters(value: string) {
   return /^[A-Za-zÀ-ÖØ-öø-ÿ\s]+$/.test(value.trim());
-}
-
-function isInstitutionalEmail(value: string) {
-  return /^[a-z0-9._%+\-]+@(alunos\.)?utfpr\.edu\.br$/i.test(value.trim());
-}
-
-function getPasswordError(value: string) {
-  if (value.length < 8) {
-    return 'A senha deve ter pelo menos 8 caracteres';
-  }
-
-  if (!/[0-9]/.test(value)) {
-    return 'A senha deve conter pelo menos um número';
-  }
-
-  if (!/[^A-Za-z0-9]/.test(value)) {
-    return 'A senha deve conter pelo menos um caractere especial';
-  }
-
-  return null;
 }
 
 const styles = StyleSheet.create({

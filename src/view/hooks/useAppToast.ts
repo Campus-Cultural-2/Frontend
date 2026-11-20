@@ -7,7 +7,14 @@ type ToastState = {
   type: AppToastType;
 };
 
-export function useAppToast(duration = 2600) {
+// Mensagens de erro e aviso precisam de tempo para serem lidas.
+const DURATION_BY_TYPE: Record<AppToastType, number> = {
+  error: 6500,
+  success: 2600,
+  warning: 5000,
+};
+
+export function useAppToast(duration?: number) {
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
 
@@ -27,7 +34,7 @@ export function useAppToast(duration = 2600) {
     setToast(nextToast);
     toastTimerRef.current = setTimeout(() => {
       setToast(null);
-    }, duration);
+    }, duration ?? DURATION_BY_TYPE[nextToast.type]);
   }, [duration]);
 
   return {

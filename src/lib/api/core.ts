@@ -3,7 +3,12 @@ import { z } from 'zod';
 import { clearAuthToken } from '@/src/lib/auth/token';
 import { env } from '@/src/lib/config/env';
 
-import { AuthSessionError } from './errors';
+import {
+  ApiError,
+  AuthSessionError,
+  getFriendlyApiMessage,
+  parseApiErrorBody,
+} from './errors';
 
 export const API_BASE_URL = env.apiBaseUrl;
 
@@ -27,6 +32,25 @@ export async function requestJson<T>(path: string, init?: RequestInit, schema?: 
       throw new AuthSessionError();
     }
 
+    const responseText = await response.text();
+    const errorBody = parseApiErrorBody(responseText);
+
+    if (typeof errorBody?.code === 'string') {
+      const details =
+        errorBody.details && typeof errorBody.details === 'object'
+          ? (errorBody.details as Record<string, unknown>)
+          : undefined;
+      const friendlyMessage = getFriendlyApiMessage(errorBody.code, path, details);
+
+      if (friendlyMessage) {
+        throw new ApiError(friendlyMessage, {
+          code: errorBody.code,
+          details,
+          status: response.status,
+        });
+      }
+    }
+
     if (response.status === 409 && path.endsWith('/subscription')) {
       throw new Error('Você já está inscrito neste evento.');
     }
@@ -35,11 +59,19 @@ export async function requestJson<T>(path: string, init?: RequestInit, schema?: 
       throw new Error('Você não está inscrito neste evento.');
     }
 
+    if (response.status === 403 && /\/events\/\d+\/subscribers$/.test(path)) {
+      throw new Error('403: Somente o professor que organizou este evento ou um administrador pode consultar os participantes.');
+    }
+
+    if (response.status === 404 && /\/events\/\d+\/subscribers$/.test(path)) {
+      throw new Error('A rota de participantes não está disponível na API publicada. O backend precisa estar atualizado com a branch feat/lista-de-inscritos-do-evento e essa versão precisa ter sido implantada no servidor.');
+    }
+
     if (response.status === 404 && path.startsWith('/events/')) {
       throw new Error('Evento não encontrado ou você não tem permissão para alterá-lo.');
     }
 
-    throw new Error(await getSafeErrorMessage(response, path));
+    throw new Error(getSafeErrorMessage(responseText, response.status, path));
   }
 
   if (response.status === 204) {
@@ -59,15 +91,14 @@ export async function requestJson<T>(path: string, init?: RequestInit, schema?: 
   }
 }
 
-async function getSafeErrorMessage(response: Response, path: string) {
+function getSafeErrorMessage(responseText: string, status: number, path: string) {
   const fallbackMessage = getFallbackErrorMessage(path);
 
   if (!__DEV__) {
     return fallbackMessage;
   }
 
-  const responseText = await response.text();
-  return responseText || `${fallbackMessage} Status: ${response.status}.`;
+  return responseText || `${fallbackMessage} Status: ${status}.`;
 }
 
 function getFallbackErrorMessage(path: string) {
