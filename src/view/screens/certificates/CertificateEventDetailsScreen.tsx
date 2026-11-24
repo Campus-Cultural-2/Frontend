@@ -119,14 +119,14 @@ export default function CertificateEventDetailsScreen() {
                   : 'Este evento não foi cadastrado com emissão de certificado.'}
               </Text>
               {event.has_certificate ? (
-                <Text style={styles.certificateFootnote}>A consulta de emissão e presença ainda não está disponível na API.</Text>
+                <Text style={styles.certificateFootnote}>A confirmação de presença segue a forma definida pelo organizador. O certificado ficará disponível após a emissão e publicação.</Text>
               ) : null}
             </View>
 
             <CertificateInfoBanner
               title={isSubscribed ? 'Inscrição confirmada' : 'Acompanhe sua inscrição pela Agenda'}
               message={isSubscribed
-                ? 'Sua inscrição está registrada. As informações de presença e liberação do certificado serão exibidas quando o Campus Cultural disponibilizar essas funções.'
+                ? 'Sua inscrição está registrada. Acompanhe a confirmação de presença na área de presença. O certificado ficará disponível aqui quando for publicado.'
                 : 'Este evento não aparece na sua lista de inscrições. Consulte a Agenda para verificar a disponibilidade de inscrição.'}
               tone={isSubscribed ? 'success' : 'info'}
             />

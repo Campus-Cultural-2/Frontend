@@ -120,8 +120,8 @@ export default function UserDetailsScreen() {
       Alert.alert(
         'Não foi possível salvar',
         requestError instanceof Error
-          ? `${requestError.message}\n\nA API atual exige uma senha para atualizar usuários. A equipe do backend precisa permitir atualização sem alterar a senha para concluir esta operação.`
-          : 'A API não conseguiu salvar as alterações. Verifique o contrato de atualização de usuários.',
+          ? requestError.message
+          : 'Não foi possível atualizar os dados do usuário. Revise as informações e tente novamente.',
       );
     } finally {
       setIsSaving(false);

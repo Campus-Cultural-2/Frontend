@@ -33,6 +33,10 @@ export function isEmailNotVerifiedError(error: unknown): error is ApiError {
   return error instanceof ApiError && error.code === 'email_not_verified';
 }
 
+export function isPermissionDeniedError(error: unknown): error is ApiError {
+  return error instanceof ApiError && (error.code === 'permission_denied' || error.status === 403);
+}
+
 type ApiErrorBody = { code?: unknown; details?: unknown; message?: unknown };
 
 export function parseApiErrorBody(text: string): ApiErrorBody | null {
@@ -89,9 +93,16 @@ export function getFriendlyApiMessage(
     case 'image_storage_unavailable':
       return 'Não foi possível salvar a imagem agora. Salve o evento sem banner ou tente mais tarde.';
     case 'permission_denied':
-      return /\/events\/\d+\/subscribers$/.test(path)
-        ? 'Somente o professor que organizou este evento ou um administrador pode consultar os participantes.'
-        :  'Você não tem permissão para fazer isso.';
+      if (/\/events\/\d+\/(subscribers|participants)$/.test(path)) {
+        return 'Somente o professor responsável pelo evento ou um administrador pode consultar os participantes.';
+      }
+      if (/^\/events\/\d+$/.test(path)) {
+        return 'Somente o professor responsável pelo evento ou um administrador pode realizar esta ação.';
+      }
+      if (/^\/events\/\d+\/(attendance\/(code|scan)|participants\/\d+\/attendance)$/.test(path)) {
+        return 'Somente o professor responsável pelo evento ou um administrador pode realizar esta ação.';
+      }
+      return 'Você não tem permissão para realizar esta ação.';
     default:
       return null;
   }

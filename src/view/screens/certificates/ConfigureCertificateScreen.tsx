@@ -17,6 +17,7 @@ import {
   getEvent,
   getValidAuthSession,
   isAuthSessionError,
+  isPermissionDeniedError,
   updateEvent,
 } from '@/src/lib/api/campus';
 import type { CampusEvent, CurrentUser, HoursGroup } from '@/src/lib/api/schemas';
@@ -30,7 +31,7 @@ import {
   CertificateStatusPill,
 } from './CertificateUi';
 
-const HOURS_GROUPS: Array<{ value: HoursGroup; label: string; shortLabel: string }> = [
+const HOURS_GROUPS: { value: HoursGroup; label: string; shortLabel: string }[] = [
   { value: 'group_1', label: 'Formação social, humana e cultural', shortLabel: 'Grupo 1' },
   { value: 'group_2', label: 'Atividades comunitárias e coletivas', shortLabel: 'Grupo 2' },
   { value: 'group_3', label: 'Iniciação científica e formação profissional', shortLabel: 'Grupo 3' },
@@ -48,6 +49,7 @@ export default function ConfigureCertificateScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -59,6 +61,7 @@ export default function ConfigureCertificateScreen() {
 
     setIsLoading(true);
     setError(null);
+    setPermissionDenied(false);
     try {
       const session = await getValidAuthSession();
       if (session.payload.role !== 'professor' && session.payload.role !== 'admin') {
@@ -66,8 +69,6 @@ export default function ConfigureCertificateScreen() {
         return;
       }
 
-      // A configuração não depende da rota de inscritos. Essa separação permite
-      // avançar mesmo quando o servidor ainda não publicou essa rota.
       const eventData = await getEvent(eventId);
       setEvent(eventData);
       setWorkload(String(eventData.workload_hours ?? 20));
@@ -87,7 +88,12 @@ export default function ConfigureCertificateScreen() {
         router.replace('/login' as never);
         return;
       }
-      setError(loadError instanceof Error ? loadError.message : 'Não foi possível carregar a configuração.');
+      if (isPermissionDeniedError(loadError)) {
+        setPermissionDenied(true);
+        setError('Somente o professor responsável pelo evento ou um administrador pode consultar as configurações do certificado.');
+      } else {
+        setError(loadError instanceof Error ? loadError.message : 'Não foi possível carregar a configuração.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -109,6 +115,7 @@ export default function ConfigureCertificateScreen() {
 
     setIsSaving(true);
     setError(null);
+    setPermissionDenied(false);
     setSuccess(null);
     try {
       const updated = await updateEvent(event.id, {
@@ -118,18 +125,25 @@ export default function ConfigureCertificateScreen() {
       });
       setEvent(updated);
       setConfirmed(false);
-      setSuccess('Certificado habilitado e informações salvas no evento.');
+      setSuccess(event.has_certificate === true
+        ? 'Carga horária e grupo de atividades atualizados com sucesso.'
+        : 'Certificado habilitado e informações salvas no evento.');
     } catch (saveError) {
       if (isAuthSessionError(saveError)) {
         await clearAuthToken();
         router.replace('/login' as never);
         return;
       }
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : 'Não foi possível salvar os dados do certificado. Verifique se você é o organizador do evento.',
-      );
+      if (isPermissionDeniedError(saveError)) {
+        setPermissionDenied(true);
+        setError('Somente o professor responsável pelo evento ou um administrador pode alterar as configurações do certificado.');
+      } else {
+        setError(
+          saveError instanceof Error
+            ? saveError.message
+            : 'Não foi possível salvar as informações do certificado. Tente novamente.',
+        );
+      }
     } finally {
       setIsSaving(false);
     }
@@ -159,16 +173,20 @@ export default function ConfigureCertificateScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <CertificateScreenHeading
           title="Configurar certificado"
-          subtitle="Visualize e confirme os dados antes da emissão"
+          subtitle="Revise as informações do evento"
           onBack={() => router.back()}
         />
 
-        {error ? <CertificateInfoBanner title="Não foi possível concluir a configuração" message={error} tone="error" /> : null}
-        {success ? <CertificateInfoBanner title="Dados salvos" message={success} tone="success" /> : null}
-
-        {!event ? (
-          <CertificateInfoBanner title="Evento não encontrado" message="Volte ao painel e selecione outro evento." tone="warning" />
+        {permissionDenied ? (
+          <CertificateInfoBanner title="Acesso restrito" message={error ?? 'Somente o professor responsável pelo evento ou um administrador pode alterar as configurações do certificado.'} tone="info" />
         ) : (
+          <>
+            {error ? <CertificateInfoBanner title="Não foi possível concluir a configuração" message={error} tone="error" /> : null}
+            {success ? <CertificateInfoBanner title="Dados salvos" message={success} tone="success" /> : null}
+
+            {!event ? (
+              <CertificateInfoBanner title="Evento não encontrado" message="Volte ao painel e selecione outro evento." tone="warning" />
+            ) : (
           <>
             {!certificateEnabled ? (
               <View style={styles.enableCard}>
@@ -253,6 +271,45 @@ export default function ConfigureCertificateScreen() {
                   </View>
                 </View>
 
+                <View style={styles.enableCard}>
+                  <Text style={styles.enableTitle}>Editar informações do certificado</Text>
+                  <Text style={styles.enableDescription}>
+                    Você pode alterar a carga horária e o grupo de atividades sempre que precisar.
+                  </Text>
+                  <Text style={styles.fieldLabel}>CARGA HORÁRIA</Text>
+                  <View style={styles.inputShell}>
+                    <TextInput
+                      keyboardType="number-pad"
+                      onChangeText={(value) => setWorkload(value.replace(/[^0-9]/g, ''))}
+                      placeholder="20"
+                      placeholderTextColor="#A0A5AB"
+                      style={styles.input}
+                      value={workload}
+                    />
+                    <Text style={styles.inputSuffix}>horas</Text>
+                  </View>
+                  <Text style={styles.fieldLabel}>GRUPO DE ATIVIDADES COMPLEMENTARES</Text>
+                  <View style={styles.groupOptions}>
+                    {HOURS_GROUPS.map((group) => (
+                      <Pressable
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: hoursGroup === group.value }}
+                        key={group.value}
+                        onPress={() => setHoursGroup(group.value)}
+                        style={[styles.groupOption, hoursGroup === group.value && styles.groupOptionSelected]}>
+                        <Text style={[styles.groupOptionTitle, hoursGroup === group.value && styles.groupOptionTitleSelected]}>{group.shortLabel}</Text>
+                        <Text style={[styles.groupOptionDescription, hoursGroup === group.value && styles.groupOptionDescriptionSelected]}>{group.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <CertificatePrimaryButton
+                    label={isSaving ? 'Salvando...' : 'Salvar alterações'}
+                    onPress={() => void enableCertificate()}
+                    disabled={isSaving}
+                    icon="save"
+                  />
+                </View>
+
                 <Pressable
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: confirmed }}
@@ -265,8 +322,8 @@ export default function ConfigureCertificateScreen() {
                 </Pressable>
 
                 <CertificateInfoBanner
-                  title="A emissão ainda não está conectada"
-                  message="Você pode avançar para revisar o processo. A geração dos documentos só será habilitada quando o backend disponibilizar a operação de emissão."
+                  title="Certificado ainda não emitido"
+                  message="A configuração foi salva, mas o certificado ainda não foi gerado. A emissão, publicação e envio do documento não estão disponíveis no momento."
                   tone="warning"
                 />
                 <CertificatePrimaryButton
@@ -277,6 +334,8 @@ export default function ConfigureCertificateScreen() {
                 />
               </>
             )}
+          </>
+        )}
           </>
         )}
       </ScrollView>
@@ -293,42 +352,42 @@ function readId(value: string | string[] | undefined) {
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: CERTIFICATE_COLORS.background, flex: 1 },
   loadingScreen: { alignItems: 'center', backgroundColor: CERTIFICATE_COLORS.background, flex: 1, justifyContent: 'center' },
-  content: { paddingBottom: 34, paddingHorizontal: 18, paddingTop: 15 },
-  enableCard: { backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 10, borderWidth: 1, marginBottom: 13, padding: 14 },
-  enableTitle: { color: '#343A40', fontSize: 13, fontWeight: '900' },
-  enableDescription: { color: '#727A84', fontSize: 9, lineHeight: 14, marginBottom: 14, marginTop: 5 },
-  fieldLabel: { color: '#535B64', fontSize: 8, fontWeight: '900', marginBottom: 6, marginTop: 10 },
-  inputShell: { alignItems: 'center', borderColor: '#E2E5E7', borderRadius: 8, borderWidth: 1, flexDirection: 'row', minHeight: 42, paddingHorizontal: 11 },
-  input: { color: '#343A40', flex: 1, fontSize: 11, height: 42 },
-  inputSuffix: { color: '#7B838C', fontSize: 9 },
-  groupOptions: { gap: 7, marginBottom: 14 },
-  groupOption: { borderColor: '#E1E3E5', borderRadius: 8, borderWidth: 1, padding: 10 },
+  content: { paddingBottom: 38, paddingHorizontal: 20, paddingTop: 18 },
+  enableCard: { backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 14, borderWidth: 1, marginBottom: 15, padding: 18 },
+  enableTitle: { color: '#343A40', fontSize: 17, fontWeight: '900' },
+  enableDescription: { color: '#727A84', fontSize: 13, lineHeight: 19, marginBottom: 16, marginTop: 7 },
+  fieldLabel: { color: '#535B64', fontSize: 11, fontWeight: '900', marginBottom: 7, marginTop: 13 },
+  inputShell: { alignItems: 'center', borderColor: '#E2E5E7', borderRadius: 10, borderWidth: 1, flexDirection: 'row', minHeight: 50, paddingHorizontal: 13 },
+  input: { color: '#343A40', flex: 1, fontSize: 14, height: 50 },
+  inputSuffix: { color: '#7B838C', fontSize: 12 },
+  groupOptions: { gap: 9, marginBottom: 17 },
+  groupOption: { borderColor: '#E1E3E5', borderRadius: 10, borderWidth: 1, paddingHorizontal: 13, paddingVertical: 12 },
   groupOptionSelected: { backgroundColor: '#FFF8D6', borderColor: CERTIFICATE_COLORS.primary },
-  groupOptionTitle: { color: '#565E67', fontSize: 9, fontWeight: '900' },
+  groupOptionTitle: { color: '#565E67', fontSize: 12, fontWeight: '900' },
   groupOptionTitleSelected: { color: '#171717' },
-  groupOptionDescription: { color: '#89919A', fontSize: 8, marginTop: 3 },
+  groupOptionDescription: { color: '#89919A', fontSize: 11, lineHeight: 16, marginTop: 4 },
   groupOptionDescriptionSelected: { color: '#655311' },
-  certificatePreview: { backgroundColor: '#FFFFFF', borderColor: CERTIFICATE_COLORS.primary, borderRadius: 10, borderWidth: 2, marginBottom: 15, minHeight: 285, padding: 14 },
+  certificatePreview: { backgroundColor: '#FFFFFF', borderColor: CERTIFICATE_COLORS.primary, borderRadius: 13, borderWidth: 2, marginBottom: 16, minHeight: 330, padding: 18 },
   previewHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   brandMark: { alignItems: 'center', flexDirection: 'row', gap: 5 },
   brandStripe: { backgroundColor: CERTIFICATE_COLORS.primary, borderRadius: 2, height: 15, width: 4 },
-  brandText: { color: '#1B1D20', fontSize: 9, fontWeight: '900' },
-  previewCenter: { alignItems: 'center', flex: 1, justifyContent: 'center', paddingVertical: 30 },
-  previewEyebrow: { color: '#8A9097', fontSize: 8, letterSpacing: 1.1 },
-  previewPerson: { color: '#24282D', fontSize: 16, fontWeight: '900', marginTop: 10, textAlign: 'center' },
-  previewBody: { color: '#606872', fontSize: 9, marginTop: 8 },
-  previewEvent: { color: '#25292E', fontSize: 12, fontWeight: '800', marginTop: 4, textAlign: 'center' },
-  previewWorkload: { color: '#777F88', fontSize: 8, marginTop: 5, textAlign: 'center' },
+  brandText: { color: '#1B1D20', fontSize: 11, fontWeight: '900' },
+  previewCenter: { alignItems: 'center', flex: 1, justifyContent: 'center', paddingVertical: 34 },
+  previewEyebrow: { color: '#8A9097', fontSize: 10, letterSpacing: 1.1 },
+  previewPerson: { color: '#24282D', fontSize: 20, fontWeight: '900', marginTop: 12, textAlign: 'center' },
+  previewBody: { color: '#606872', fontSize: 12, marginTop: 9 },
+  previewEvent: { color: '#25292E', fontSize: 15, fontWeight: '800', lineHeight: 21, marginTop: 5, textAlign: 'center' },
+  previewWorkload: { color: '#777F88', fontSize: 10, marginTop: 6, textAlign: 'center' },
   signatureRow: { flexDirection: 'row', gap: 22, justifyContent: 'space-around' },
   signatureLine: { alignItems: 'center', borderTopColor: '#D5D8DB', borderTopWidth: 1, flex: 1, paddingTop: 5 },
-  signatureLabel: { color: '#686F77', fontSize: 8, textAlign: 'center' },
-  signatureRole: { color: '#9299A0', fontSize: 7, marginTop: 2 },
-  previewDisclaimer: { color: '#A0A5AB', fontSize: 7, fontWeight: '800', letterSpacing: 0.8, marginTop: 13, textAlign: 'center' },
-  configInfo: { backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 9, borderWidth: 1, marginBottom: 12, paddingHorizontal: 12 },
-  infoRow: { borderBottomColor: '#EEF0F1', borderBottomWidth: 1, paddingVertical: 10 },
-  fieldValue: { color: '#343A40', fontSize: 10, fontWeight: '700' },
-  confirmRow: { alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 9, borderWidth: 1, flexDirection: 'row', gap: 10, marginBottom: 12, padding: 12 },
+  signatureLabel: { color: '#686F77', fontSize: 10, textAlign: 'center' },
+  signatureRole: { color: '#9299A0', fontSize: 9, marginTop: 3 },
+  previewDisclaimer: { color: '#A0A5AB', fontSize: 9, fontWeight: '800', letterSpacing: 0.6, marginTop: 14, textAlign: 'center' },
+  configInfo: { backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 12, borderWidth: 1, marginBottom: 14, paddingHorizontal: 15 },
+  infoRow: { borderBottomColor: '#EEF0F1', borderBottomWidth: 1, paddingVertical: 12 },
+  fieldValue: { color: '#343A40', fontSize: 13, fontWeight: '700' },
+  confirmRow: { alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 11, borderWidth: 1, flexDirection: 'row', gap: 12, marginBottom: 14, padding: 14 },
   checkbox: { alignItems: 'center', borderColor: '#BCC2C8', borderRadius: 5, borderWidth: 1, height: 21, justifyContent: 'center', width: 21 },
   checkboxChecked: { backgroundColor: CERTIFICATE_COLORS.primary, borderColor: CERTIFICATE_COLORS.primary },
-  confirmText: { color: '#414850', flex: 1, fontSize: 10, lineHeight: 15 },
+  confirmText: { color: '#414850', flex: 1, fontSize: 12, lineHeight: 18 },
 });

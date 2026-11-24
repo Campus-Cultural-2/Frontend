@@ -74,7 +74,9 @@ export default function UserStatusConfirmationScreen() {
       }
       Alert.alert(
         'Não foi possível alterar o status',
-        `${requestError instanceof Error ? requestError.message : 'A API não conseguiu atualizar o usuário.'}\n\nA API atual exige uma senha para atualizar usuários. O backend precisa permitir atualização do status sem redefinir a senha.`,
+        requestError instanceof Error
+          ? requestError.message
+          : 'Não foi possível atualizar o status do usuário. Tente novamente mais tarde.',
       );
     } finally {
       setIsSaving(false);

@@ -74,8 +74,8 @@ export default function CertificateResultScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <CertificateScreenHeading
-          title="Revisão da emissão"
-          subtitle="Confira o resumo antes de concluir a emissão"
+          title="Revisão do certificado"
+          subtitle="Confira as informações salvas para este evento"
           onBack={() => router.back()}
         />
 
@@ -90,7 +90,7 @@ export default function CertificateResultScreen() {
               <CertificateStatusPill label="Aguardando emissão" tone="warning" />
               <Text style={styles.statusTitle}>Configuração revisada</Text>
               <Text style={styles.statusDescription}>
-                Os dados do evento estão prontos para a etapa de emissão. Nenhum certificado foi gerado ainda.
+                As informações do evento foram revisadas. Nenhum certificado foi gerado ou publicado até o momento.
               </Text>
             </View>
 
@@ -107,13 +107,13 @@ export default function CertificateResultScreen() {
 
             <View style={styles.metricsRow}>
               <Metric value={String(event.subscribers_count ?? '—')} label="inscritos" />
-              <Metric value="—" label="elegíveis" />
-              <Metric value="0" label="emitidos" />
+              <Metric value={typeof event.workload_hours === 'number' ? `${event.workload_hours}h` : '—'} label="carga horária" />
+              <Metric value="—" label="emitidos" />
             </View>
 
             <CertificateInfoBanner
-              title="Falta a operação de emissão no backend"
-              message="A API atual não gera os documentos nem registra uma emissão. Por isso, esta tela confirma somente a revisão dos dados; publicação e envio por e-mail continuam indisponíveis."
+              title="Emissão ainda não disponível"
+              message="A configuração foi salva, mas nenhum certificado foi gerado. A emissão, publicação e envio do documento ainda não estão disponíveis."
               tone="warning"
             />
 
