@@ -26,12 +26,16 @@ import {
 import { formatCampusDayMonth } from '@/src/lib/datetime/campusTime';
 import { getEventImageUri } from '@/src/lib/events/eventImage';
 
+type EventViewMode = 'featured' | 'grid' | 'list';
+type EventViewIcon = 'view-agenda' | 'grid-view' | 'view-list';
+
 export default function HomeScreen() {
   const router = useRouter();
   const [events, setEvents] = useState<CampusEvent[]>([]);
   const [subscribedIds, setSubscribedIds] = useState<Set<number>>(() => new Set());
   const [pendingIds, setPendingIds] = useState<Set<number>>(() => new Set());
   const [isLoading, setIsLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<EventViewMode>('featured');
 
   const handleToggleSubscription = useCallback(
     async (eventId: number) => {
@@ -79,9 +83,10 @@ export default function HomeScreen() {
         isPending={pendingIds.has(item.id)}
         isSubscribed={subscribedIds.has(item.id)}
         onToggleSubscription={handleToggleSubscription}
+        viewMode={viewMode}
       />
     ),
-    [handleToggleSubscription, pendingIds, subscribedIds],
+    [handleToggleSubscription, pendingIds, subscribedIds, viewMode],
   );
 
   useFocusEffect(
@@ -131,13 +136,18 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <FlatList
-        contentContainerStyle={styles.content}
+        key={`events-${viewMode}`}
+        contentContainerStyle={[styles.content, viewMode === 'grid' ? styles.gridContent : null]}
         data={events}
         initialNumToRender={4}
         keyExtractor={keyExtractor}
         ListEmptyComponent={!isLoading ? EmptyEvents : null}
-        ListHeaderComponent={<HomeHeader isLoading={isLoading} />}
+        ListHeaderComponent={
+          <HomeHeader isLoading={isLoading} viewMode={viewMode} onChangeViewMode={setViewMode} />
+        }
         maxToRenderPerBatch={5}
+        numColumns={viewMode === 'grid' ? 2 : 1}
+        columnWrapperStyle={viewMode === 'grid' ? styles.gridRow : undefined}
         renderItem={renderEvent}
         showsVerticalScrollIndicator={false}
         windowSize={7}
@@ -146,7 +156,15 @@ export default function HomeScreen() {
   );
 }
 
-function HomeHeader({ isLoading }: { isLoading: boolean }) {
+function HomeHeader({
+  isLoading,
+  viewMode,
+  onChangeViewMode,
+}: {
+  isLoading: boolean;
+  viewMode: EventViewMode;
+  onChangeViewMode: (mode: EventViewMode) => void;
+}) {
   return (
     <>
       <Animatable.Text
@@ -154,8 +172,35 @@ function HomeHeader({ isLoading }: { isLoading: boolean }) {
         duration={420}
         style={styles.headerTitle}
         useNativeDriver>
-        UTFPR CULTURA
+        Eventos Culturais UTFPR
       </Animatable.Text>
+
+      <View style={styles.viewModeContainer}>
+        <Text style={styles.viewModeLabel}>Visualização</Text>
+        <View accessibilityRole="radiogroup" style={styles.viewModeSelector}>
+          <ViewModeButton
+            accessibilityLabel="Cartões grandes"
+            icon="view-agenda"
+            isSelected={viewMode === 'featured'}
+            label="Destaques"
+            onPress={() => onChangeViewMode('featured')}
+          />
+          <ViewModeButton
+            accessibilityLabel="Grade com duas colunas"
+            icon="grid-view"
+            isSelected={viewMode === 'grid'}
+            label="Grade"
+            onPress={() => onChangeViewMode('grid')}
+          />
+          <ViewModeButton
+            accessibilityLabel="Lista compacta"
+            icon="view-list"
+            isSelected={viewMode === 'list'}
+            label="Lista"
+            onPress={() => onChangeViewMode('list')}
+          />
+        </View>
+      </View>
 
       {isLoading ? (
         <Animatable.View
@@ -168,6 +213,34 @@ function HomeHeader({ isLoading }: { isLoading: boolean }) {
         </Animatable.View>
       ) : null}
     </>
+  );
+}
+
+function ViewModeButton({
+  accessibilityLabel,
+  icon,
+  isSelected,
+  label,
+  onPress,
+}: {
+  accessibilityLabel: string;
+  icon: EventViewIcon;
+  isSelected: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: isSelected }}
+      onPress={onPress}
+      style={[styles.viewModeButton, isSelected ? styles.viewModeButtonSelected : null]}>
+      <MaterialIcons color={isSelected ? '#171717' : '#777777'} name={icon} size={17} />
+      <Text style={[styles.viewModeButtonText, isSelected ? styles.viewModeButtonTextSelected : null]}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -185,12 +258,14 @@ function EventCard({
   isPending,
   isSubscribed,
   onToggleSubscription,
+  viewMode,
 }: {
   event: CampusEvent;
   index: number;
   isPending: boolean;
   isSubscribed: boolean;
   onToggleSubscription: (eventId: number) => void;
+  viewMode: EventViewMode;
 }) {
   const imageUri = getEventImageUri(event.image);
 
@@ -199,9 +274,19 @@ function EventCard({
       animation="fadeInUp"
       delay={index * 90}
       duration={420}
-      style={styles.card}
+      style={[
+        styles.card,
+        viewMode === 'grid' ? styles.gridCard : null,
+        viewMode === 'list' ? styles.listCard : null,
+      ]}
       useNativeDriver>
-      <View style={[styles.eventVisual, index % 2 ? styles.artVisual : styles.musicVisual]}>
+      <View
+        style={[
+          styles.eventVisual,
+          viewMode === 'grid' ? styles.gridEventVisual : null,
+          viewMode === 'list' ? styles.listEventVisual : null,
+          index % 2 ? styles.artVisual : styles.musicVisual,
+        ]}>
         {imageUri ? (
           <Image source={{ uri: imageUri }} contentFit="cover" style={styles.eventImage} />
         ) : index % 2 ? (
@@ -213,18 +298,31 @@ function EventCard({
         ) : (
           <>
             <View style={styles.stageLight} />
-            <MaterialIcons name="mic" size={88} color="#1A1A1A" />
+            <MaterialIcons
+              name="mic"
+              size={viewMode === 'featured' ? 88 : 42}
+              color="#1A1A1A"
+            />
           </>
         )}
       </View>
 
-      <View style={styles.cardBody}>
-        <Text style={styles.meta}>
+      <View
+        style={[
+          styles.cardBody,
+          viewMode === 'grid' ? styles.gridCardBody : null,
+          viewMode === 'list' ? styles.listCardBody : null,
+        ]}>
+        <Text numberOfLines={viewMode === 'featured' ? 1 : 2} style={styles.meta}>
           <Text style={styles.metaDate}>{formatCampusDayMonth(event.event_datetime)}</Text>
           {'  •  '}
           {event.event_location}
         </Text>
-        <Text style={styles.eventTitle}>{event.name}</Text>
+        <Text
+          numberOfLines={2}
+          style={[styles.eventTitle, viewMode !== 'featured' ? styles.compactEventTitle : null]}>
+          {event.name}
+        </Text>
         <Text numberOfLines={2} style={styles.eventDescription}>
           {event.description}
         </Text>
@@ -236,6 +334,7 @@ function EventCard({
             onPress={() => onToggleSubscription(event.id)}
             style={[
               styles.eventButton,
+              viewMode !== 'featured' ? styles.compactEventButton : null,
               isSubscribed && styles.eventButtonSubscribed,
               isPending && styles.eventButtonPending,
             ]}>
@@ -243,8 +342,10 @@ function EventCard({
               <ActivityIndicator color="#111111" size="small" />
             ) : (
               <Text
+                numberOfLines={1}
                 style={[
                   styles.eventButtonText,
+                  viewMode !== 'featured' ? styles.compactEventButtonText : null,
                   isSubscribed && styles.eventButtonTextSubscribed,
                 ]}>
                 {isSubscribed ? 'Cancelar inscrição' : 'Inscrever-se'}
@@ -284,13 +385,63 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
   },
+  gridContent: {
+    gap: 12,
+  },
+  gridRow: {
+    gap: 12,
+  },
   headerTitle: {
     color: '#1E1E1E',
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: '900',
-    paddingBottom: 8,
+    paddingBottom: 12,
     paddingTop: 10,
     textAlign: 'center',
+  },
+  viewModeContainer: {
+    marginBottom: 4,
+  },
+  viewModeLabel: {
+    color: '#777777',
+    fontSize: 11,
+    fontWeight: '800',
+    marginBottom: 7,
+    textTransform: 'uppercase',
+  },
+  viewModeSelector: {
+    backgroundColor: '#EEEEF0',
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 4,
+    padding: 4,
+  },
+  viewModeButton: {
+    alignItems: 'center',
+    borderRadius: 6,
+    flex: 1,
+    flexDirection: 'row',
+    gap: 5,
+    justifyContent: 'center',
+    minHeight: 38,
+    paddingHorizontal: 5,
+  },
+  viewModeButtonSelected: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#111111',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  viewModeButtonText: {
+    color: '#777777',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  viewModeButtonTextSelected: {
+    color: '#171717',
+    fontWeight: '900',
   },
   loadingRow: {
     alignItems: 'center',
@@ -320,6 +471,12 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
+  gridCard: {
+    flex: 1,
+  },
+  listCard: {
+    flexDirection: 'row',
+  },
   authorRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -345,6 +502,15 @@ const styles = StyleSheet.create({
     height: 250,
     justifyContent: 'center',
     overflow: 'hidden',
+  },
+  gridEventVisual: {
+    height: 116,
+  },
+  listEventVisual: {
+    alignSelf: 'stretch',
+    minHeight: 170,
+    flexShrink: 0,
+    width: 112,
   },
   eventImage: {
     height: '100%',
@@ -398,6 +564,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 14,
   },
+  gridCardBody: {
+    paddingBottom: 11,
+    paddingHorizontal: 10,
+    paddingTop: 10,
+  },
+  listCardBody: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingBottom: 10,
+    paddingHorizontal: 11,
+    paddingTop: 10,
+  },
   meta: {
     color: '#686868',
     fontSize: 10,
@@ -414,12 +592,23 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginTop: 8,
   },
+  compactEventTitle: {
+    fontSize: 15,
+    lineHeight: 19,
+  },
   eventDescription: {
     color: '#555A61',
     fontSize: 12,
     fontWeight: '600',
     lineHeight: 18,
     marginTop: 10,
+  },
+  compactEventButton: {
+    height: 40,
+    marginTop: 11,
+  },
+  compactEventButtonText: {
+    fontSize: 10,
   },
   eventButton: {
     alignItems: 'center',

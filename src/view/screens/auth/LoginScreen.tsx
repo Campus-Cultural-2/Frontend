@@ -36,6 +36,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const isPressingPasswordEye = useRef(false);
+  const passwordVisibilityTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [focusedField, setFocusedField] = useState<FocusedField>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { showToast, toast } = useAppToast();
@@ -49,6 +50,15 @@ export default function LoginScreen() {
 
     void redirectAuthenticatedUser();
   }, [router]);
+
+  useEffect(
+    () => () => {
+      if (passwordVisibilityTimeout.current !== null) {
+        clearTimeout(passwordVisibilityTimeout.current);
+      }
+    },
+    [],
+  );
 
   async function handleLogin() {
     const normalizedEmail = email.trim();
@@ -135,8 +145,13 @@ export default function LoginScreen() {
                   onBlur={() => {
                     setFocusedField(null);
                     // Pressionar o olho pode tirar o foco do TextInput em alguns
-                    // aparelhos. Nesse caso, mantemos a senha visível até soltar.
-                    if (!isPressingPasswordEye.current) setIsPasswordVisible(false);
+                    // aparelhos. Nesse caso, mantemos a senha visível durante o prazo de ocultação.
+                    if (
+                      !isPressingPasswordEye.current &&
+                      passwordVisibilityTimeout.current === null
+                    ) {
+                      setIsPasswordVisible(false);
+                    }
                   }}
                   onChangeText={setPassword}
                   onFocus={() => setFocusedField('password')}
@@ -148,17 +163,31 @@ export default function LoginScreen() {
                 />
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={isPasswordVisible ? 'Senha visível. Solte para ocultar.' : 'Segure para visualizar a senha'}
+                  accessibilityLabel={
+                    isPasswordVisible
+                      ? 'Senha visível. Ela será ocultada três segundos após soltar.'
+                      : 'Segure para visualizar a senha.'
+                  }
                   accessibilityState={{ selected: isPasswordVisible }}
                   disabled={isLoading}
                   hitSlop={10}
                   onPressIn={() => {
+                    if (passwordVisibilityTimeout.current !== null) {
+                      clearTimeout(passwordVisibilityTimeout.current);
+                      passwordVisibilityTimeout.current = null;
+                    }
                     isPressingPasswordEye.current = true;
                     setIsPasswordVisible(true);
                   }}
                   onPressOut={() => {
                     isPressingPasswordEye.current = false;
-                    setIsPasswordVisible(false);
+                    if (passwordVisibilityTimeout.current !== null) {
+                      clearTimeout(passwordVisibilityTimeout.current);
+                    }
+                    passwordVisibilityTimeout.current = setTimeout(() => {
+                      passwordVisibilityTimeout.current = null;
+                      setIsPasswordVisible(false);
+                    }, 3000);
                   }}
                   style={styles.passwordVisibilityButton}>
                   <MaterialIcons
