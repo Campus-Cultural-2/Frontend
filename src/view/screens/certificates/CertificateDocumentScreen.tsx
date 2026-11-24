@@ -111,7 +111,7 @@ export default function CertificateDocumentScreen() {
 
             <CertificateInfoBanner
               title="Certificado ainda não publicado"
-              message="O backend atual não disponibiliza o documento PDF nem as operações de envio por e-mail. Assim que o responsável emitir e publicar o certificado, essas ações poderão ser habilitadas."
+              message="Este certificado ainda não foi publicado. Quando houver um documento disponível, você poderá visualizá-lo e baixá-lo por aqui."
               tone="warning"
             />
 

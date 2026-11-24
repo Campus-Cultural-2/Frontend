@@ -472,7 +472,7 @@ function ExistingEventEditorScreen() {
 
       showToast({
         message:
-          error instanceof Error ? error.message : 'Verifique se a API está rodando e tente novamente.',
+          error instanceof Error ? error.message : 'Não foi possível salvar o evento. Verifique sua conexão e tente novamente.',
         type: 'error',
       });
     } finally {
@@ -894,7 +894,7 @@ function ExistingEventEditorScreen() {
       <UnsavedChangesDialog
         cancelLabel="Manter evento"
         confirmLabel="Excluir evento"
-        message="Esta ação remove o evento do backend e não pode ser desfeita."
+        message="Esta ação exclui o evento permanentemente e não pode ser desfeita."
         title="Excluir evento?"
         visible={isDeleteDialogVisible}
         onCancel={() => setIsDeleteDialogVisible(false)}

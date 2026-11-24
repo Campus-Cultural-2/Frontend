@@ -71,7 +71,7 @@ async function getStoredAuthSession(): Promise<AuthSession> {
 
   if (!authToken) {
     await clearAuthToken();
-    throw new AuthSessionError('Faça login para autenticar com o backend.');
+    throw new AuthSessionError('Faça login para continuar.');
   }
 
   try {

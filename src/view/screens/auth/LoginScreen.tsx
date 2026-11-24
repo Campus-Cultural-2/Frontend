@@ -165,7 +165,7 @@ export default function LoginScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={
                     isPasswordVisible
-                      ? 'Senha visível. Ela será ocultada três segundos após soltar.'
+                      ? 'Senha visível. Ela será ocultada dois segundos após soltar.'
                       : 'Segure para visualizar a senha.'
                   }
                   accessibilityState={{ selected: isPasswordVisible }}
@@ -187,7 +187,7 @@ export default function LoginScreen() {
                     passwordVisibilityTimeout.current = setTimeout(() => {
                       passwordVisibilityTimeout.current = null;
                       setIsPasswordVisible(false);
-                    }, 3000);
+                    }, 2000);
                   }}
                   style={styles.passwordVisibilityButton}>
                   <MaterialIcons

@@ -176,7 +176,6 @@ function HomeHeader({
       </Animatable.Text>
 
       <View style={styles.viewModeContainer}>
-        <Text style={styles.viewModeLabel}>Visualização</Text>
         <View accessibilityRole="radiogroup" style={styles.viewModeSelector}>
           <ViewModeButton
             accessibilityLabel="Cartões grandes"
@@ -401,13 +400,6 @@ const styles = StyleSheet.create({
   },
   viewModeContainer: {
     marginBottom: 4,
-  },
-  viewModeLabel: {
-    color: '#777777',
-    fontSize: 11,
-    fontWeight: '800',
-    marginBottom: 7,
-    textTransform: 'uppercase',
   },
   viewModeSelector: {
     backgroundColor: '#EEEEF0',

@@ -4,4 +4,4 @@ export * from './health';
 export * from './schemas';
 export * from './session';
 export * from './users';
-export { isEmailNotVerifiedError } from './errors';
+export { isEmailNotVerifiedError, isPermissionDeniedError } from './errors';

@@ -17,9 +17,10 @@ import {
   getEvent,
   getValidAuthSession,
   isAuthSessionError,
-  listEventSubscribers,
+  isPermissionDeniedError,
+  listParticipants,
 } from '@/src/lib/api/campus';
-import type { CampusEvent, EventSubscriber } from '@/src/lib/api/schemas';
+import type { CampusEvent, Participant } from '@/src/lib/api/schemas';
 import { clearAuthToken } from '@/src/lib/auth/token';
 
 import {
@@ -32,38 +33,56 @@ import {
   getPersonInitials,
 } from './CertificateUi';
 
+type ParticipantFilter = 'all' | 'present' | 'pending';
+
 export default function CertificateParticipantsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ eventId?: string | string[] }>();
   const eventId = readId(params.eventId);
   const [event, setEvent] = useState<CampusEvent | null>(null);
-  const [participants, setParticipants] = useState<EventSubscriber[]>([]);
+  const [participants, setParticipants] = useState<Participant[]>([]);
   const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<ParticipantFilter>('all');
   const [isLoadingEvent, setIsLoadingEvent] = useState(true);
   const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasLoadedParticipants, setHasLoadedParticipants] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const [eventError, setEventError] = useState<string | null>(null);
   const [participantsError, setParticipantsError] = useState<string | null>(null);
 
   const loadParticipants = useCallback(async () => {
     if (!eventId) return;
+
     setIsLoadingParticipants(true);
     setParticipantsError(null);
+    setPermissionDenied(false);
+
     try {
-      const data = await listEventSubscribers(eventId);
-      setParticipants(data.filter((item) => item.role === 'student'));
+      const data = await listParticipants(eventId);
+      setParticipants(data);
+      setHasLoadedParticipants(true);
     } catch (loadError) {
       if (isAuthSessionError(loadError)) {
         await clearAuthToken();
         router.replace('/login' as never);
         return;
       }
+
       setParticipants([]);
-      setParticipantsError(
-        loadError instanceof Error
-          ? loadError.message
-          : 'Não foi possível carregar os participantes deste evento.',
-      );
+      setHasLoadedParticipants(false);
+      if (isPermissionDeniedError(loadError)) {
+        setPermissionDenied(true);
+        setParticipantsError(
+          'Somente o professor responsável pelo evento ou um administrador pode consultar os participantes.',
+        );
+      } else {
+        setParticipantsError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'Não foi possível carregar os participantes deste evento. Tente novamente.',
+        );
+      }
     } finally {
       setIsLoadingParticipants(false);
     }
@@ -87,8 +106,6 @@ export default function CertificateParticipantsScreen() {
         return;
       }
 
-      // Carrega os dados do evento independentemente da disponibilidade da rota
-      // de inscritos. Assim, uma falha na lista não bloqueia a configuração.
       const eventData = await getEvent(eventId);
       setEvent(eventData);
       await loadParticipants();
@@ -98,10 +115,11 @@ export default function CertificateParticipantsScreen() {
         router.replace('/login' as never);
         return;
       }
+
       setEventError(
         loadError instanceof Error
           ? loadError.message
-          : 'Não foi possível carregar os dados do evento.',
+          : 'Não foi possível carregar os dados deste evento. Tente novamente.',
       );
     } finally {
       setIsLoadingEvent(false);
@@ -115,20 +133,23 @@ export default function CertificateParticipantsScreen() {
     }, [loadData]),
   );
 
-  const permissionDenied = participantsError?.startsWith('403:') ?? false;
-
   const filteredParticipants = useMemo(() => {
     const normalized = search.trim().toLocaleLowerCase('pt-BR');
-    if (!normalized) return participants;
+
     return participants.filter((participant) => {
-      const fullName = `${participant.name} ${participant.last_name ?? ''}`.toLocaleLowerCase('pt-BR');
-      return (
+      const fullName = `${participant.name} ${participant.last_name}`.toLocaleLowerCase('pt-BR');
+      const matchesSearch =
+        normalized.length === 0 ||
         fullName.includes(normalized) ||
-        (participant.ra ?? '').toLocaleLowerCase('pt-BR').includes(normalized) ||
-        participant.email.toLocaleLowerCase('pt-BR').includes(normalized)
-      );
+        (participant.ra ?? '').toLocaleLowerCase('pt-BR').includes(normalized);
+      const matchesFilter =
+        filter === 'all' ||
+        (filter === 'present' && participant.attended) ||
+        (filter === 'pending' && !participant.attended);
+
+      return matchesSearch && matchesFilter;
     });
-  }, [participants, search]);
+  }, [filter, participants, search]);
 
   if (isLoadingEvent && !event) {
     return (
@@ -137,6 +158,9 @@ export default function CertificateParticipantsScreen() {
       </SafeAreaView>
     );
   }
+
+  const presentCount = participants.filter((participant) => participant.attended).length;
+  const attendanceMode = event?.attendance_mode ?? 'none';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -167,82 +191,118 @@ export default function CertificateParticipantsScreen() {
               <Text style={styles.eventName}>{event.name}</Text>
               <View style={styles.eventSummaryMeta}>
                 <Text style={styles.eventMetaText}>{event.subscribers_count ?? participants.length} inscritos</Text>
-                {typeof event.workload_hours === 'number' ? <Text style={styles.eventMetaText}>{event.workload_hours} horas</Text> : null}
+                {typeof event.workload_hours === 'number' ? (
+                  <Text style={styles.eventMetaText}>{event.workload_hours} horas</Text>
+                ) : null}
               </View>
             </View>
 
-            <View style={styles.searchBox}>
-              <MaterialIcons name="search" size={19} color="#89919A" />
-              <TextInput
-                onChangeText={setSearch}
-                placeholder="Buscar participante"
-                placeholderTextColor="#9AA0A8"
-                style={styles.searchInput}
-                value={search}
-              />
-              <MaterialIcons name="tune" size={18} color="#89919A" />
-            </View>
-
-            <View style={styles.filterRow}>
-              <FilterChip label="Todos" selected disabled={false} />
-              <FilterChip label="Presentes" disabled selected={false} />
-              <FilterChip label="Elegíveis" disabled selected={false} />
-            </View>
-
-            <View style={styles.countBanner}>
-              <Text style={styles.countBannerText}>
-                {participantsError ? `${event.subscribers_count ?? '—'} inscritos registrados` : `${participants.length} alunos encontrados`}
-              </Text>
-              <MaterialIcons name="groups" size={17} color="#7F6A1A" />
-            </View>
-
-            {participantsError ? (
+            {permissionDenied ? (
               <CertificateInfoBanner
-                title="Não foi possível obter os nomes dos inscritos"
-                message={participantsError}
-                tone="warning"
+                title="Acesso restrito"
+                message="Somente o professor responsável pelo evento ou um administrador pode consultar os participantes."
+                tone="info"
               />
-            ) : null}
+            ) : (
+              <>
+                <View style={styles.searchBox}>
+                  <MaterialIcons name="search" size={20} color="#89919A" />
+                  <TextInput
+                    onChangeText={setSearch}
+                    placeholder="Buscar por nome ou RA"
+                    placeholderTextColor="#9AA0A8"
+                    style={styles.searchInput}
+                    value={search}
+                  />
+                  {search.length > 0 ? (
+                    <Pressable accessibilityRole="button" accessibilityLabel="Limpar busca" onPress={() => setSearch('')}>
+                      <MaterialIcons name="close" size={18} color="#89919A" />
+                    </Pressable>
+                  ) : null}
+                </View>
 
-            {isLoadingParticipants ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator color={CERTIFICATE_COLORS.primary} />
-                <Text style={styles.loadingText}>Carregando participantes...</Text>
-              </View>
-            ) : null}
+                <View style={styles.filterRow}>
+                  <FilterChip label="Todos" selected={filter === 'all'} onPress={() => setFilter('all')} />
+                  <FilterChip label="Presentes" selected={filter === 'present'} onPress={() => setFilter('present')} />
+                  <FilterChip label="Pendentes" selected={filter === 'pending'} onPress={() => setFilter('pending')} />
+                </View>
 
-            {!isLoadingParticipants && !participantsError && filteredParticipants.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <MaterialIcons name="person-search" size={25} color="#9298A0" />
-                <Text style={styles.emptyTitle}>{search ? 'Nenhum resultado encontrado' : 'Nenhum aluno inscrito'}</Text>
-                <Text style={styles.emptyDescription}>{search ? 'Tente pesquisar por outro nome, RA ou e-mail.' : 'Os alunos inscritos neste evento aparecerão aqui.'}</Text>
-              </View>
-            ) : null}
+                {!isLoadingParticipants && hasLoadedParticipants ? (
+                  <View style={styles.countBanner}>
+                    <View>
+                      <Text style={styles.countBannerText}>{participants.length} participantes inscritos</Text>
+                      <Text style={styles.countBannerDetail}>{presentCount} presentes · {participants.length - presentCount} pendentes</Text>
+                    </View>
+                    <MaterialIcons name="groups" size={20} color="#7F6A1A" />
+                  </View>
+                ) : null}
 
-            {!participantsError
-              ? filteredParticipants.map((participant) => (
-                  <ParticipantCard key={participant.user_id} participant={participant} />
-                ))
-              : null}
+                {participantsError ? (
+                  <CertificateInfoBanner
+                    title="Não foi possível carregar os participantes"
+                    message={participantsError}
+                    tone="warning"
+                  />
+                ) : null}
 
-            <CertificateInfoBanner
-              title="Presença e elegibilidade"
-              message="A API atual fornece a lista de inscritos, mas ainda não registra presença nem a elegibilidade individual. Por isso, esses dados aparecem como pendentes e não podem ser alterados ou salvos ainda."
-              tone="info"
-            />
+                {isLoadingParticipants ? (
+                  <View style={styles.loadingRow}>
+                    <ActivityIndicator color={CERTIFICATE_COLORS.primary} />
+                    <Text style={styles.loadingText}>Carregando participantes...</Text>
+                  </View>
+                ) : null}
 
-            {!permissionDenied ? (
-              <CertificatePrimaryButton
-                label={event.has_certificate === true ? 'Configurar certificado' : 'Habilitar certificado'}
-                onPress={() => router.push({ pathname: '/certificados-configurar', params: { eventId: String(event.id) } } as never)}
-                icon="arrow-forward"
-              />
-            ) : null}
-            {participantsError && !permissionDenied ? (
-              <Pressable accessibilityRole="button" onPress={() => void loadParticipants()} style={styles.retryLink}>
-                <Text style={styles.retryText}>Tentar carregar os participantes novamente</Text>
-              </Pressable>
-            ) : null}
+                {!isLoadingParticipants && !participantsError && hasLoadedParticipants && filteredParticipants.length === 0 ? (
+                  <View style={styles.emptyCard}>
+                    <MaterialIcons name="person-search" size={27} color="#9298A0" />
+                    <Text style={styles.emptyTitle}>
+                      {search
+                        ? 'Nenhum resultado encontrado'
+                        : filter === 'present'
+                          ? 'Nenhum participante presente'
+                          : filter === 'pending'
+                            ? 'Nenhum participante pendente'
+                            : 'Nenhum aluno inscrito'}
+                    </Text>
+                    <Text style={styles.emptyDescription}>
+                      {search
+                        ? 'Tente pesquisar por outro nome ou RA.'
+                        : 'Os alunos inscritos neste evento aparecerão aqui.'}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {!participantsError
+                  ? filteredParticipants.map((participant) => (
+                      <ParticipantCard
+                        attendanceMode={attendanceMode}
+                        key={participant.user_id}
+                        participant={participant}
+                      />
+                    ))
+                  : null}
+
+                {hasLoadedParticipants ? (
+                  <CertificateInfoBanner
+                    title="Registro de presença"
+                    message={getAttendanceModeDescription(attendanceMode)}
+                    tone="info"
+                  />
+                ) : null}
+
+                <CertificatePrimaryButton
+                  label={event.has_certificate === true ? 'Configurar certificado' : 'Habilitar certificado'}
+                  onPress={() => router.push({ pathname: '/certificados-configurar', params: { eventId: String(event.id) } } as never)}
+                  icon="arrow-forward"
+                />
+
+                {participantsError ? (
+                  <Pressable accessibilityRole="button" onPress={() => void loadParticipants()} style={styles.retryLink}>
+                    <Text style={styles.retryText}>Tentar carregar os participantes novamente</Text>
+                  </Pressable>
+                ) : null}
+              </>
+            )}
           </>
         ) : null}
       </ScrollView>
@@ -250,8 +310,21 @@ export default function CertificateParticipantsScreen() {
   );
 }
 
-function ParticipantCard({ participant }: { participant: EventSubscriber }) {
-  const fullName = `${participant.name} ${participant.last_name ?? ''}`.trim();
+function ParticipantCard({
+  participant,
+  attendanceMode,
+}: {
+  participant: Participant;
+  attendanceMode: CampusEvent['attendance_mode'];
+}) {
+  const fullName = `${participant.name} ${participant.last_name}`.trim();
+  const automaticPresence = attendanceMode === 'none' && participant.attended;
+  const statusLabel = participant.attended
+    ? automaticPresence
+      ? 'Presença automática'
+      : 'Presente'
+    : 'Pendente';
+
   return (
     <View style={styles.participantCard}>
       <View style={styles.participantTop}>
@@ -259,25 +332,59 @@ function ParticipantCard({ participant }: { participant: EventSubscriber }) {
           <Text style={styles.avatarText}>{getPersonInitials(participant.name, participant.last_name)}</Text>
         </View>
         <View style={styles.identity}>
-          <Text style={styles.participantName}>{fullName}</Text>
+          <Text numberOfLines={2} style={styles.participantName}>{fullName}</Text>
           <Text style={styles.participantRa}>{participant.ra ? `RA ${participant.ra}` : 'RA não informado'}</Text>
         </View>
-        <CertificateStatusPill label="Inscrito" tone="success" />
+        <CertificateStatusPill
+          label={statusLabel}
+          tone={participant.attended ? 'success' : 'warning'}
+        />
       </View>
       <View style={styles.participantMeta}>
-        <Text style={styles.email}>{participant.email}</Text>
-        <Text style={styles.subscribedDate}>Inscrito em {formatSubscriptionDate(participant.subscribed_at)}</Text>
+        <Text style={styles.presenceDetail}>
+          {participant.checked_in_at
+            ? `Presença confirmada em ${formatSubscriptionDate(participant.checked_in_at)}`
+            : automaticPresence
+              ? 'Todos os inscritos são considerados presentes neste evento.'
+              : 'A presença ainda não foi confirmada.'}
+        </Text>
       </View>
     </View>
   );
 }
 
-function FilterChip({ label, selected, disabled }: { label: string; selected: boolean; disabled: boolean }) {
+function FilterChip({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
   return (
-    <View style={[styles.filterChip, selected && styles.filterChipSelected, disabled && styles.filterChipDisabled]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.filterChip,
+        selected && styles.filterChipSelected,
+        pressed && styles.filterChipPressed,
+      ]}>
       <Text style={[styles.filterText, selected && styles.filterTextSelected]}>{label}</Text>
-    </View>
+    </Pressable>
   );
+}
+
+function getAttendanceModeDescription(mode: CampusEvent['attendance_mode']) {
+  if (mode === 'professor') {
+    return 'O professor responsável registra a presença durante o evento, manualmente ou lendo o QR Code do aluno.';
+  }
+  if (mode === 'student') {
+    return 'Cada aluno confirma a própria presença usando o código ou QR Code apresentado pelo professor.';
+  }
+  return 'Este evento não exige confirmação individual: todos os alunos inscritos são considerados presentes.';
 }
 
 function readId(value: string | string[] | undefined) {
@@ -289,36 +396,36 @@ function readId(value: string | string[] | undefined) {
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: CERTIFICATE_COLORS.background, flex: 1 },
   loadingScreen: { alignItems: 'center', backgroundColor: CERTIFICATE_COLORS.background, flex: 1, justifyContent: 'center' },
-  content: { paddingBottom: 35, paddingHorizontal: 18, paddingTop: 15 },
-  eventSummary: { backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 9, borderWidth: 1, marginBottom: 12, padding: 12 },
-  eventName: { color: '#343A40', fontSize: 12, fontWeight: '900' },
-  eventSummaryMeta: { flexDirection: 'row', gap: 12, marginTop: 6 },
-  eventMetaText: { color: '#7B838C', fontSize: 9 },
-  searchBox: { alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 9, borderWidth: 1, flexDirection: 'row', gap: 8, height: 42, paddingHorizontal: 11 },
-  searchInput: { color: '#343A40', flex: 1, fontSize: 10, height: '100%' },
-  filterRow: { flexDirection: 'row', gap: 7, marginBottom: 12, marginTop: 10 },
-  filterChip: { backgroundColor: '#FFFFFF', borderColor: '#E1E3E5', borderRadius: 16, borderWidth: 1, paddingHorizontal: 13, paddingVertical: 7 },
+  content: { paddingBottom: 36, paddingHorizontal: 18, paddingTop: 18 },
+  eventSummary: { backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 12, borderWidth: 1, marginBottom: 14, padding: 15 },
+  eventName: { color: '#343A40', fontSize: 15, fontWeight: '900', lineHeight: 20 },
+  eventSummaryMeta: { flexDirection: 'row', gap: 13, marginTop: 8 },
+  eventMetaText: { color: '#7B838C', fontSize: 11 },
+  searchBox: { alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 10, borderWidth: 1, flexDirection: 'row', gap: 9, height: 48, paddingHorizontal: 13 },
+  searchInput: { color: '#343A40', flex: 1, fontSize: 13, height: '100%' },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14, marginTop: 12 },
+  filterChip: { backgroundColor: '#FFFFFF', borderColor: '#E1E3E5', borderRadius: 18, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 9 },
   filterChipSelected: { backgroundColor: CERTIFICATE_COLORS.primary, borderColor: CERTIFICATE_COLORS.primary },
-  filterChipDisabled: { opacity: 0.48 },
-  filterText: { color: '#59616A', fontSize: 9, fontWeight: '700' },
+  filterChipPressed: { opacity: 0.75 },
+  filterText: { color: '#59616A', fontSize: 11, fontWeight: '700' },
   filterTextSelected: { color: '#171717', fontWeight: '900' },
-  countBanner: { alignItems: 'center', backgroundColor: '#FFF2A6', borderRadius: 7, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, paddingHorizontal: 11, paddingVertical: 9 },
-  countBannerText: { color: '#5D511F', fontSize: 9, fontWeight: '800' },
-  loadingRow: { alignItems: 'center', flexDirection: 'row', gap: 8, justifyContent: 'center', paddingVertical: 22 },
-  loadingText: { color: '#727A84', fontSize: 9 },
-  participantCard: { backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 10, borderWidth: 1, marginBottom: 9, padding: 11 },
-  participantTop: { alignItems: 'center', flexDirection: 'row', gap: 9 },
-  avatar: { alignItems: 'center', backgroundColor: CERTIFICATE_COLORS.primary, borderRadius: 18, height: 36, justifyContent: 'center', width: 36 },
-  avatarText: { color: '#171717', fontSize: 10, fontWeight: '900' },
-  identity: { flex: 1, gap: 3 },
-  participantName: { color: '#343A40', fontSize: 10, fontWeight: '900' },
-  participantRa: { color: '#858C94', fontSize: 8 },
-  participantMeta: { borderTopColor: '#EEF0F1', borderTopWidth: 1, gap: 4, marginTop: 9, paddingLeft: 45, paddingTop: 8 },
-  email: { color: '#707982', fontSize: 8 },
-  subscribedDate: { color: '#9AA0A7', fontSize: 8 },
-  emptyCard: { alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 11, borderWidth: 1, marginTop: 10, padding: 25 },
-  emptyTitle: { color: '#343A40', fontSize: 11, fontWeight: '900', marginTop: 9 },
-  emptyDescription: { color: '#858C94', fontSize: 9, lineHeight: 14, marginTop: 5, textAlign: 'center' },
-  retryLink: { alignSelf: 'center', padding: 12 },
-  retryText: { color: '#6C5600', fontSize: 9, fontWeight: '800' },
+  countBanner: { alignItems: 'center', backgroundColor: '#FFF5C7', borderRadius: 9, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, paddingHorizontal: 13, paddingVertical: 11 },
+  countBannerText: { color: '#5D511F', fontSize: 12, fontWeight: '900' },
+  countBannerDetail: { color: '#77672A', fontSize: 10, marginTop: 3 },
+  loadingRow: { alignItems: 'center', flexDirection: 'row', gap: 9, justifyContent: 'center', paddingVertical: 24 },
+  loadingText: { color: '#727A84', fontSize: 12 },
+  participantCard: { backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 12, borderWidth: 1, marginBottom: 10, padding: 14 },
+  participantTop: { alignItems: 'center', flexDirection: 'row', gap: 11 },
+  avatar: { alignItems: 'center', backgroundColor: CERTIFICATE_COLORS.primary, borderRadius: 20, height: 40, justifyContent: 'center', width: 40 },
+  avatarText: { color: '#171717', fontSize: 12, fontWeight: '900' },
+  identity: { flex: 1, gap: 4 },
+  participantName: { color: '#343A40', fontSize: 13, fontWeight: '900', lineHeight: 18 },
+  participantRa: { color: '#858C94', fontSize: 11 },
+  participantMeta: { borderTopColor: '#EEF0F1', borderTopWidth: 1, marginTop: 11, paddingTop: 9 },
+  presenceDetail: { color: '#707982', fontSize: 11, lineHeight: 16 },
+  emptyCard: { alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 12, borderWidth: 1, marginTop: 8, paddingHorizontal: 24, paddingVertical: 30 },
+  emptyTitle: { color: '#343A40', fontSize: 14, fontWeight: '900', marginTop: 10 },
+  emptyDescription: { color: '#858C94', fontSize: 12, lineHeight: 17, marginTop: 6, textAlign: 'center' },
+  retryLink: { alignSelf: 'center', padding: 13 },
+  retryText: { color: '#6C5600', fontSize: 11, fontWeight: '800' },
 });

@@ -234,9 +234,9 @@ const styles = StyleSheet.create({
   },
   headingSubtitle: {
     color: CERTIFICATE_COLORS.muted,
-    fontSize: 11,
-    lineHeight: 16,
-    marginTop: 3,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
   },
   banner: {
     alignItems: 'flex-start',
@@ -250,13 +250,13 @@ const styles = StyleSheet.create({
   bannerCopy: { flex: 1, gap: 3 },
   bannerTitle: {
     color: CERTIFICATE_COLORS.ink,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '900',
   },
   bannerMessage: {
     color: '#555D66',
-    fontSize: 10,
-    lineHeight: 15,
+    fontSize: 11,
+    lineHeight: 17,
   },
   statusPill: {
     alignSelf: 'flex-start',

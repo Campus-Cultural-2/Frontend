@@ -16,11 +16,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   getValidAuthSession,
   isAuthSessionError,
+  isPermissionDeniedError,
   listEvents,
-  listEventSubscribers,
+  listParticipants,
   listSubscribedEvents,
 } from '@/src/lib/api/campus';
-import type { CampusEvent, EventSubscriber, UserRole } from '@/src/lib/api/schemas';
+import type { CampusEvent, Participant, UserRole } from '@/src/lib/api/schemas';
 import { clearAuthToken } from '@/src/lib/auth/token';
 
 import {
@@ -55,8 +56,7 @@ export default function CertificatesScreen() {
 
       if (session.payload.role === 'student') {
         const subscribedEvents = await listSubscribedEvents();
-        // A API atual ainda não informa emissão/publicação. Mostramos os eventos
-        // com certificado habilitado (ou sem o campo em servidores antigos).
+        // Mostra os eventos em que o aluno está inscrito e que oferecem certificado.
         const certificateEvents = subscribedEvents
           .filter((event) => event.has_certificate !== false)
           .sort((left, right) =>
@@ -66,8 +66,7 @@ export default function CertificatesScreen() {
         return;
       }
 
-      // O painel mostra todos os eventos. A autorização para abrir os inscritos
-      // é aplicada pelo backend na rota /events/{id}/subscribers.
+      // O painel lista os eventos; a API valida a permissão ao consultar participantes.
       const apiEvents = await listEvents();
       apiEvents.sort(
         (left, right) =>
@@ -107,8 +106,7 @@ export default function CertificatesScreen() {
         normalizedSearch.length === 0 ||
         event.name.toLocaleLowerCase('pt-BR').includes(normalizedSearch);
 
-      // Ainda não existe endpoint de certificados emitidos. Por isso, nenhum
-      // evento pode ser apresentado como disponível antes da confirmação da API.
+      // A emissão ainda não está disponível; nenhum evento deve aparecer como certificado publicado.
       const matchesFilter = studentFilter !== 'available';
       return matchesSearch && matchesFilter;
     });
@@ -209,12 +207,12 @@ export default function CertificatesScreen() {
         }
         showsVerticalScrollIndicator={false}>
         <Text style={styles.pageTitle}>Certificados por evento</Text>
-        <Text style={styles.pageSubtitle}>Acompanhe presença, emissão e publicação.</Text>
+        <Text style={styles.pageSubtitle}>Consulte participantes e acompanhe a situação dos certificados.</Text>
 
         <View style={styles.metricsRow}>
           <MetricCard value={String(activeEvents)} label="eventos ativos" />
-          <MetricCard value="—" label="elegíveis" helper="presença não registrada" />
-          <MetricCard value="—" label="publicados" helper="status não fornecido" />
+          <MetricCard value="—" label="participantes" helper="consulte por evento" />
+          <MetricCard value="—" label="certificados" helper="emissão ainda indisponível" />
         </View>
 
         <CertificateSectionTitle
@@ -276,38 +274,46 @@ function TeacherEventCard({
   onConfigure: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [subscribers, setSubscribers] = useState<EventSubscriber[]>([]);
-  const [isLoadingSubscribers, setIsLoadingSubscribers] = useState(false);
-  const [subscriberError, setSubscriberError] = useState<string | null>(null);
-  const [hasLoadedSubscribers, setHasLoadedSubscribers] = useState(false);
-  const subscriberCount = event.subscribers_count;
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
+  const [participantsError, setParticipantsError] = useState<string | null>(null);
+  const [permissionDenied, setPermissionDenied] = useState(false);
+  const [hasLoadedParticipants, setHasLoadedParticipants] = useState(false);
+  const participantCount = event.subscribers_count;
 
-  const loadSubscribers = useCallback(async () => {
-    setIsLoadingSubscribers(true);
-    setSubscriberError(null);
+  const loadParticipants = useCallback(async () => {
+    setIsLoadingParticipants(true);
+    setParticipantsError(null);
+    setPermissionDenied(false);
     try {
-      const result = await listEventSubscribers(event.id);
-      setSubscribers(result.filter((subscriber) => subscriber.role === 'student'));
-      setHasLoadedSubscribers(true);
+      const result = await listParticipants(event.id);
+      setParticipants(result);
+      setHasLoadedParticipants(true);
     } catch (loadError) {
-      setHasLoadedSubscribers(false);
-      setSubscriberError(
-        loadError instanceof Error
-          ? loadError.message
-          : 'Não foi possível consultar os participantes deste evento.',
-      );
+      setParticipants([]);
+      setHasLoadedParticipants(false);
+      if (isPermissionDeniedError(loadError)) {
+        setPermissionDenied(true);
+        setParticipantsError('Somente o professor responsável pelo evento ou um administrador pode consultar os participantes.');
+      } else {
+        setParticipantsError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'Não foi possível consultar os participantes deste evento. Tente novamente.',
+        );
+      }
     } finally {
-      setIsLoadingSubscribers(false);
+      setIsLoadingParticipants(false);
     }
   }, [event.id]);
 
   const handleExpand = useCallback(() => {
     const nextExpanded = !expanded;
     setExpanded(nextExpanded);
-    if (nextExpanded && !hasLoadedSubscribers && !isLoadingSubscribers) {
-      void loadSubscribers();
+    if (nextExpanded && !hasLoadedParticipants && !isLoadingParticipants) {
+      void loadParticipants();
     }
-  }, [expanded, hasLoadedSubscribers, isLoadingSubscribers, loadSubscribers]);
+  }, [expanded, hasLoadedParticipants, isLoadingParticipants, loadParticipants]);
 
   const progress = event.max_participants && typeof subscriberCount === 'number'
     ? Math.min(subscriberCount / event.max_participants, 1)
@@ -332,7 +338,7 @@ function TeacherEventCard({
         </View>
         <View style={styles.eventMetadata}>
           <MetaItem icon="schedule" label={formatTime(event.event_datetime)} />
-          <MetaItem icon="groups" label={`${subscriberCount ?? '—'} inscritos`} />
+          <MetaItem icon="groups" label={`${participantCount ?? '—'} inscritos`} />
           {typeof event.workload_hours === 'number' ? (
             <MetaItem icon="timer" label={`${event.workload_hours} horas`} />
           ) : null}
@@ -341,7 +347,7 @@ function TeacherEventCard({
           <View style={styles.progressBlock}>
             <View style={styles.progressLabelRow}>
               <Text style={styles.progressLabel}>Inscrições registradas</Text>
-              <Text style={styles.progressValue}>{subscriberCount} de {event.max_participants}</Text>
+              <Text style={styles.progressValue}>{participantCount} de {event.max_participants}</Text>
             </View>
             <View style={styles.progressTrack}>
               <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
@@ -359,36 +365,36 @@ function TeacherEventCard({
           <View style={styles.panelDivider} />
           <CertificateSectionTitle
             title="Participantes inscritos"
-            subtitle={hasLoadedSubscribers ? `${subscribers.length} alunos` : `${subscriberCount ?? 0} inscrições registradas`}
+            subtitle={hasLoadedParticipants ? `${participants.length} alunos` : `${participantCount ?? 0} inscrições registradas`}
           />
-          {isLoadingSubscribers ? (
+          {isLoadingParticipants ? (
             <View style={styles.inlineLoading}>
               <ActivityIndicator size="small" color="#B08D00" />
-              <Text style={styles.inlineLoadingText}>Consultando inscritos...</Text>
+              <Text style={styles.inlineLoadingText}>Consultando participantes...</Text>
             </View>
           ) : null}
-          {subscriberError ? (
+          {permissionDenied ? (
             <CertificateInfoBanner
-              title="Não foi possível carregar os nomes"
-              message={subscriberError}
+              title="Acesso restrito"
+              message="Somente o professor responsável pelo evento ou um administrador pode consultar os participantes."
+              tone="info"
+            />
+          ) : participantsError ? (
+            <CertificateInfoBanner
+              title="Não foi possível carregar os participantes"
+              message={participantsError}
               tone="warning"
             />
           ) : null}
-          {!isLoadingSubscribers && !subscriberError && hasLoadedSubscribers && subscribers.length === 0 ? (
+          {!isLoadingParticipants && !participantsError && hasLoadedParticipants && participants.length === 0 ? (
             <Text style={styles.noSubscribers}>Nenhum aluno inscrito neste evento.</Text>
           ) : null}
-          {!isLoadingSubscribers && !subscriberError
-            ? subscribers.map((subscriber) => (
-                <SubscriberPreview key={subscriber.user_id} subscriber={subscriber} />
+          {!isLoadingParticipants && !participantsError
+            ? participants.map((participant) => (
+                <ParticipantPreview key={participant.user_id} participant={participant} />
               ))
             : null}
-          {subscriberError?.startsWith('403:') ? (
-            <CertificateInfoBanner
-              title="Evento organizado por outro professor"
-              message="Você pode visualizar este evento no painel, mas somente o responsável pela organização ou um administrador pode gerenciar participantes e certificados."
-              tone="info"
-            />
-          ) : (
+          {!permissionDenied ? (
             <View style={styles.eventActions}>
               <View style={styles.eventActionFlex}>
                 <CertificatePrimaryButton label="Gerenciar participantes" onPress={onManage} icon="arrow-forward" />
@@ -400,25 +406,25 @@ function TeacherEventCard({
                 </Text>
               </Pressable>
             </View>
-          )}
+          ) : null}
         </View>
       ) : null}
     </View>
   );
 }
 
-function SubscriberPreview({ subscriber }: { subscriber: EventSubscriber }) {
-  const fullName = `${subscriber.name} ${subscriber.last_name ?? ''}`.trim();
+function ParticipantPreview({ participant }: { participant: Participant }) {
+  const fullName = `${participant.name} ${participant.last_name}`.trim();
   return (
     <View style={styles.subscriberPreview}>
       <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{getPersonInitials(subscriber.name, subscriber.last_name)}</Text>
+        <Text style={styles.avatarText}>{getPersonInitials(participant.name, participant.last_name)}</Text>
       </View>
       <View style={styles.subscriberIdentity}>
         <Text numberOfLines={1} style={styles.subscriberName}>{fullName}</Text>
-        <Text style={styles.subscriberRa}>{subscriber.ra ? `RA ${subscriber.ra}` : 'RA não informado'}</Text>
+        <Text style={styles.subscriberRa}>{participant.ra ? `RA ${participant.ra}` : 'RA não informado'}</Text>
       </View>
-      <CertificateStatusPill label="Inscrito" tone="success" />
+      <CertificateStatusPill label={participant.attended ? 'Presente' : 'Pendente'} tone={participant.attended ? 'success' : 'warning'} />
     </View>
   );
 }
