@@ -315,8 +315,8 @@ function TeacherEventCard({
     }
   }, [expanded, hasLoadedParticipants, isLoadingParticipants, loadParticipants]);
 
-  const progress = event.max_participants && typeof subscriberCount === 'number'
-    ? Math.min(subscriberCount / event.max_participants, 1)
+  const progress = event.max_participants && typeof participantCount === 'number'
+    ? Math.min(participantCount / event.max_participants, 1)
     : null;
 
   return (
