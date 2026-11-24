@@ -36,7 +36,7 @@ const MUTED = '#737982';
 const BACKGROUND = '#FAFAFA';
 const DESCRIPTION_LIMIT = 500;
 
-const HOURS_GROUPS: Array<{ value: HoursGroup; label: string }> = [
+const HOURS_GROUPS: { value: HoursGroup; label: string }[] = [
   { value: 'group_1', label: 'Grupo 1 · Formação social, humana e cultural' },
   { value: 'group_2', label: 'Grupo 2 · Atividades comunitárias e coletivas' },
   { value: 'group_3', label: 'Grupo 3 · Iniciação científica e formação profissional' },

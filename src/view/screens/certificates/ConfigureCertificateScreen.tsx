@@ -31,7 +31,7 @@ import {
   CertificateStatusPill,
 } from './CertificateUi';
 
-const HOURS_GROUPS: Array<{ value: HoursGroup; label: string; shortLabel: string }> = [
+const HOURS_GROUPS: { value: HoursGroup; label: string; shortLabel: string }[] = [
   { value: 'group_1', label: 'Formação social, humana e cultural', shortLabel: 'Grupo 1' },
   { value: 'group_2', label: 'Atividades comunitárias e coletivas', shortLabel: 'Grupo 2' },
   { value: 'group_3', label: 'Iniciação científica e formação profissional', shortLabel: 'Grupo 3' },
@@ -125,7 +125,9 @@ export default function ConfigureCertificateScreen() {
       });
       setEvent(updated);
       setConfirmed(false);
-      setSuccess('Certificado habilitado e informações salvas no evento.');
+      setSuccess(event.has_certificate === true
+        ? 'Carga horária e grupo de atividades atualizados com sucesso.'
+        : 'Certificado habilitado e informações salvas no evento.');
     } catch (saveError) {
       if (isAuthSessionError(saveError)) {
         await clearAuthToken();
@@ -267,6 +269,45 @@ export default function ConfigureCertificateScreen() {
                     <Text style={styles.fieldLabel}>PARTICIPANTES INSCRITOS</Text>
                     <Text style={styles.fieldValue}>{event.subscribers_count ?? '—'}</Text>
                   </View>
+                </View>
+
+                <View style={styles.enableCard}>
+                  <Text style={styles.enableTitle}>Editar informações do certificado</Text>
+                  <Text style={styles.enableDescription}>
+                    Você pode alterar a carga horária e o grupo de atividades sempre que precisar.
+                  </Text>
+                  <Text style={styles.fieldLabel}>CARGA HORÁRIA</Text>
+                  <View style={styles.inputShell}>
+                    <TextInput
+                      keyboardType="number-pad"
+                      onChangeText={(value) => setWorkload(value.replace(/[^0-9]/g, ''))}
+                      placeholder="20"
+                      placeholderTextColor="#A0A5AB"
+                      style={styles.input}
+                      value={workload}
+                    />
+                    <Text style={styles.inputSuffix}>horas</Text>
+                  </View>
+                  <Text style={styles.fieldLabel}>GRUPO DE ATIVIDADES COMPLEMENTARES</Text>
+                  <View style={styles.groupOptions}>
+                    {HOURS_GROUPS.map((group) => (
+                      <Pressable
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: hoursGroup === group.value }}
+                        key={group.value}
+                        onPress={() => setHoursGroup(group.value)}
+                        style={[styles.groupOption, hoursGroup === group.value && styles.groupOptionSelected]}>
+                        <Text style={[styles.groupOptionTitle, hoursGroup === group.value && styles.groupOptionTitleSelected]}>{group.shortLabel}</Text>
+                        <Text style={[styles.groupOptionDescription, hoursGroup === group.value && styles.groupOptionDescriptionSelected]}>{group.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <CertificatePrimaryButton
+                    label={isSaving ? 'Salvando...' : 'Salvar alterações'}
+                    onPress={() => void enableCertificate()}
+                    disabled={isSaving}
+                    icon="save"
+                  />
                 </View>
 
                 <Pressable
