@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 import {
   getCurrentUser,
   getValidAuthSession,
@@ -43,6 +44,7 @@ export default function UserListScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [isSignOutDialogVisible, setIsSignOutDialogVisible] = useState(false);
 
   const loadUsers = useCallback(async (refresh = false) => {
     if (refresh) {
@@ -148,34 +150,16 @@ export default function UserListScreen() {
     });
   }, [users, search, roleFilter, statusFilter]);
 
-  const handleSignOut = useCallback(() => {
-    Alert.alert(
-      'Sair da conta',
-      'Deseja realmente encerrar sua sessão?',
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Sair',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              try {
-                await clearAuthToken();
-                router.replace('/login' as never);
-              } catch {
-                Alert.alert(
-                  'Erro',
-                  'Não foi possível encerrar a sessão.',
-                );
-              }
-            })();
-          },
-        },
-      ],
-    );
+  // Alert.alert nao faz nada no react-native-web, entao a confirmacao e um dialogo proprio.
+  const handleSignOut = useCallback(async () => {
+    setIsSignOutDialogVisible(false);
+
+    try {
+      await clearAuthToken();
+      router.replace('/login' as never);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível encerrar a sessão.');
+    }
   }, [router]);
 
   const openStatusFilter = useCallback(() => {
@@ -307,7 +291,7 @@ export default function UserListScreen() {
 
                   <Pressable
                     accessibilityRole="button"
-                    onPress={handleSignOut}
+                    onPress={() => setIsSignOutDialogVisible(true)}
                     style={styles.signOutButton}
                   >
                     <MaterialIcons
@@ -491,6 +475,16 @@ export default function UserListScreen() {
           }
         />
       </KeyboardAvoidingView>
+
+      <UnsavedChangesDialog
+        cancelLabel="Continuar logado"
+        confirmLabel="Sair da conta"
+        message="Deseja realmente encerrar sua sessão?"
+        title="Sair da conta?"
+        visible={isSignOutDialogVisible}
+        onCancel={() => setIsSignOutDialogVisible(false)}
+        onDiscard={() => void handleSignOut()}
+      />
     </SafeAreaView>
   );
 }
