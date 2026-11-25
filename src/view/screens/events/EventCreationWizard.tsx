@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -151,6 +151,26 @@ export default function EventCreationWizard() {
       active = false;
     };
   }, [router, showToast]);
+
+  // A tela fica montada nas tabs. Depois de publicar, ao sair o wizard volta ao
+  // inicio para que o proximo evento nao reabra a tela de "Evento publicado".
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        if (step !== 4) return;
+        setForm(INITIAL_FORM);
+        setStep(1);
+        setSelectedDate(null);
+        setSelectedEndDate(null);
+        setPickerTarget('start');
+        setDraftDate(getDefaultDate());
+        setIsDatePickerVisible(false);
+        setIsCategoryPickerVisible(false);
+        setPublishedEventId(null);
+        setErrors({});
+      };
+    }, [step]),
+  );
 
   function updateField<K extends keyof EventWizardForm>(field: K, value: EventWizardForm[K]) {
     setForm((current) => ({ ...current, [field]: value }));
