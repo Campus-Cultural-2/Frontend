@@ -3,6 +3,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -51,6 +52,7 @@ export default function ConfigureCertificateScreen() {
   const [error, setError] = useState<string | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isDisableDialogVisible, setIsDisableDialogVisible] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!eventId) {
@@ -142,6 +144,46 @@ export default function ConfigureCertificateScreen() {
           saveError instanceof Error
             ? saveError.message
             : 'Não foi possível salvar as informações do certificado. Tente novamente.',
+        );
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function disableCertificate() {
+    if (!event || event.has_certificate !== true) return;
+
+    setIsSaving(true);
+    setError(null);
+    setPermissionDenied(false);
+    setSuccess(null);
+    try {
+      const updated = await updateEvent(event.id, {
+        has_certificate: false,
+        workload_hours: null,
+        hours_group: null,
+      });
+      setEvent(updated);
+      setWorkload('20');
+      setHoursGroup('group_1');
+      setConfirmed(false);
+      setIsDisableDialogVisible(false);
+      setSuccess('Certificado desabilitado. A carga horária e o grupo de atividades foram removidos do evento.');
+    } catch (saveError) {
+      if (isAuthSessionError(saveError)) {
+        await clearAuthToken();
+        router.replace('/login' as never);
+        return;
+      }
+      if (isPermissionDeniedError(saveError)) {
+        setPermissionDenied(true);
+        setError('Somente o professor responsável pelo evento ou um administrador pode alterar as configurações do certificado.');
+      } else {
+        setError(
+          saveError instanceof Error
+            ? saveError.message
+            : 'Não foi possível desabilitar o certificado. Tente novamente.',
         );
       }
     } finally {
@@ -308,6 +350,14 @@ export default function ConfigureCertificateScreen() {
                     disabled={isSaving}
                     icon="save"
                   />
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={isSaving}
+                    onPress={() => setIsDisableDialogVisible(true)}
+                    style={[styles.disableButton, isSaving && styles.disableButtonDisabled]}>
+                    <MaterialIcons name="block" size={17} color="#B42318" />
+                    <Text style={styles.disableButtonText}>Desabilitar certificado</Text>
+                  </Pressable>
                 </View>
 
                 <Pressable
@@ -339,6 +389,41 @@ export default function ConfigureCertificateScreen() {
           </>
         )}
       </ScrollView>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={isDisableDialogVisible}
+        onRequestClose={() => setIsDisableDialogVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.confirmDialog}>
+            <Text style={styles.confirmDialogTitle}>Desabilitar certificado?</Text>
+            <Text style={styles.confirmDialogMessage}>
+              O evento deixará de oferecer certificado. A carga horária e o grupo de atividades também serão removidos. Essa ação pode ser revertida habilitando o certificado novamente.
+            </Text>
+            <View style={styles.confirmDialogActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isSaving}
+                onPress={() => setIsDisableDialogVisible(false)}
+                style={styles.cancelDisableButton}>
+                <Text style={styles.cancelDisableButtonText}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isSaving}
+                onPress={() => void disableCertificate()}
+                style={[styles.confirmDisableButton, isSaving && styles.disableButtonDisabled]}>
+                {isSaving ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.confirmDisableButtonText}>Desabilitar</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -390,4 +475,16 @@ const styles = StyleSheet.create({
   checkbox: { alignItems: 'center', borderColor: '#BCC2C8', borderRadius: 5, borderWidth: 1, height: 21, justifyContent: 'center', width: 21 },
   checkboxChecked: { backgroundColor: CERTIFICATE_COLORS.primary, borderColor: CERTIFICATE_COLORS.primary },
   confirmText: { color: '#414850', flex: 1, fontSize: 12, lineHeight: 18 },
+  disableButton: { alignItems: 'center', alignSelf: 'stretch', borderColor: '#F2B8B5', borderRadius: 9, borderWidth: 1, flexDirection: 'row', gap: 8, justifyContent: 'center', marginTop: 12, minHeight: 44, paddingHorizontal: 14 },
+  disableButtonDisabled: { opacity: 0.55 },
+  disableButtonText: { color: '#B42318', fontSize: 12, fontWeight: '800' },
+  modalOverlay: { alignItems: 'center', backgroundColor: 'rgba(17, 17, 17, 0.45)', flex: 1, justifyContent: 'center', padding: 22 },
+  confirmDialog: { backgroundColor: '#FFFFFF', borderRadius: 14, maxWidth: 420, padding: 20, width: '100%' },
+  confirmDialogTitle: { color: '#24282D', fontSize: 18, fontWeight: '900' },
+  confirmDialogMessage: { color: '#626B75', fontSize: 13, lineHeight: 20, marginTop: 10 },
+  confirmDialogActions: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end', marginTop: 22 },
+  cancelDisableButton: { alignItems: 'center', backgroundColor: '#F0F1F2', borderRadius: 8, justifyContent: 'center', minHeight: 42, paddingHorizontal: 16 },
+  cancelDisableButtonText: { color: '#4F5862', fontSize: 12, fontWeight: '800' },
+  confirmDisableButton: { alignItems: 'center', backgroundColor: '#B42318', borderRadius: 8, justifyContent: 'center', minHeight: 42, minWidth: 112, paddingHorizontal: 16 },
+  confirmDisableButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
 });

@@ -29,6 +29,7 @@ import {
   AttendanceMode,
   EventCreateIn,
   EventUpdateIn,
+  type HoursGroup,
   getEvent,
   getValidAuthSession,
   isAuthSessionError,
@@ -65,6 +66,24 @@ const attendanceOptions: { description: string; label: string; value: Attendance
     description: 'O aluno lê o código do evento para confirmar.',
     label: 'Pelo aluno',
     value: 'student',
+  },
+];
+
+const certificateGroups: { description: string; label: string; value: HoursGroup }[] = [
+  {
+    description: 'Formação social, humana e cultural',
+    label: 'Grupo 1',
+    value: 'group_1',
+  },
+  {
+    description: 'Atividades comunitárias e coletivas',
+    label: 'Grupo 2',
+    value: 'group_2',
+  },
+  {
+    description: 'Iniciação científica e formação profissional',
+    label: 'Grupo 3',
+    value: 'group_3',
   },
 ];
 
@@ -123,6 +142,12 @@ function ExistingEventEditorScreen() {
   const [pickerTarget, setPickerTarget] = useState<'start' | 'end'>('start');
   const [attendanceMode, setAttendanceMode] = useState<AttendanceMode>('none');
   const [savedAttendanceMode, setSavedAttendanceMode] = useState<AttendanceMode>('none');
+  const [hasCertificate, setHasCertificate] = useState(false);
+  const [savedHasCertificate, setSavedHasCertificate] = useState(false);
+  const [workloadHours, setWorkloadHours] = useState('20');
+  const [savedWorkloadHours, setSavedWorkloadHours] = useState('20');
+  const [hoursGroup, setHoursGroup] = useState<HoursGroup>('group_1');
+  const [savedHoursGroup, setSavedHoursGroup] = useState<HoursGroup>('group_1');
   const [draftDate, setDraftDate] = useState<Date>(new Date());
   const [minimumSelectableDate, setMinimumSelectableDate] = useState<Date>(() => new Date());
   const [isDatePopoverVisible, setIsDatePopoverVisible] = useState(false);
@@ -147,18 +172,26 @@ function ExistingEventEditorScreen() {
       !isLoadingEvent &&
       (!areEventFormsEqual(form, savedForm) ||
         attendanceMode !== savedAttendanceMode ||
+        hasCertificate !== savedHasCertificate ||
+        (hasCertificate && (workloadHours !== savedWorkloadHours || hoursGroup !== savedHoursGroup)) ||
         (selectedDate?.getTime() ?? null) !== (savedSelectedDate?.getTime() ?? null) ||
         (selectedEndDate?.getTime() ?? null) !== (savedSelectedEndDate?.getTime() ?? null)),
     [
       attendanceMode,
       form,
+      hasCertificate,
+      hoursGroup,
       isLoadingEvent,
       savedAttendanceMode,
+      savedHasCertificate,
+      savedHoursGroup,
+      savedWorkloadHours,
       savedForm,
       savedSelectedDate,
       savedSelectedEndDate,
       selectedDate,
       selectedEndDate,
+      workloadHours,
     ],
   );
 
@@ -229,6 +262,15 @@ function ExistingEventEditorScreen() {
         setSavedSelectedEndDate(nextEndDate);
         setAttendanceMode(event.attendance_mode);
         setSavedAttendanceMode(event.attendance_mode);
+        const eventHasCertificate = event.has_certificate === true;
+        const eventWorkloadHours = String(event.workload_hours ?? 20);
+        const eventHoursGroup = event.hours_group ?? 'group_1';
+        setHasCertificate(eventHasCertificate);
+        setSavedHasCertificate(eventHasCertificate);
+        setWorkloadHours(eventWorkloadHours);
+        setSavedWorkloadHours(eventWorkloadHours);
+        setHoursGroup(eventHoursGroup);
+        setSavedHoursGroup(eventHoursGroup);
         setForm(nextForm);
         setSavedForm(nextForm);
       } catch (error) {
@@ -414,6 +456,15 @@ function ExistingEventEditorScreen() {
       return;
     }
 
+    const parsedWorkloadHours = Number(workloadHours);
+    if (hasCertificate && (!Number.isInteger(parsedWorkloadHours) || parsedWorkloadHours <= 0)) {
+      showToast({
+        message: 'Informe uma carga horária inteira maior que zero para o certificado.',
+        type: 'warning',
+      });
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -432,7 +483,12 @@ function ExistingEventEditorScreen() {
       };
 
       if (isEditing && editingEventId !== null) {
-        const updatePayload: EventUpdateIn = { ...payload };
+        const updatePayload: EventUpdateIn = {
+          ...payload,
+          has_certificate: hasCertificate,
+          workload_hours: hasCertificate ? parsedWorkloadHours : null,
+          hours_group: hasCertificate ? hoursGroup : null,
+        };
 
         if (!hasImageChanged(form, savedForm)) {
           delete updatePayload.image;
@@ -443,6 +499,13 @@ function ExistingEventEditorScreen() {
         setSavedSelectedDate(selectedDate);
         setSavedSelectedEndDate(selectedEndDate);
         setSavedAttendanceMode(attendanceMode);
+        setSavedHasCertificate(hasCertificate);
+        setSavedWorkloadHours(hasCertificate ? workloadHours : '20');
+        setSavedHoursGroup(hasCertificate ? hoursGroup : 'group_1');
+        if (!hasCertificate) {
+          setWorkloadHours('20');
+          setHoursGroup('group_1');
+        }
         showToast({
           message: 'As alterações foram salvas.',
           type: 'success',
@@ -528,6 +591,12 @@ function ExistingEventEditorScreen() {
     setSavedSelectedEndDate(null);
     setAttendanceMode('none');
     setSavedAttendanceMode('none');
+    setHasCertificate(false);
+    setSavedHasCertificate(false);
+    setWorkloadHours('20');
+    setSavedWorkloadHours('20');
+    setHoursGroup('group_1');
+    setSavedHoursGroup('group_1');
     setDraftDate(new Date());
     setIsDatePopoverVisible(false);
     setErrors({});
@@ -538,6 +607,9 @@ function ExistingEventEditorScreen() {
     setSelectedDate(savedSelectedDate);
     setSelectedEndDate(savedSelectedEndDate);
     setAttendanceMode(savedAttendanceMode);
+    setHasCertificate(savedHasCertificate);
+    setWorkloadHours(savedWorkloadHours);
+    setHoursGroup(savedHoursGroup);
     setDraftDate(savedSelectedDate ?? new Date());
     setIsDatePopoverVisible(false);
     setErrors({});
@@ -731,6 +803,81 @@ function ExistingEventEditorScreen() {
                   );
                 })}
               </View>
+            </View>
+
+            <View style={styles.certificateSettings}>
+              <View>
+                <Text style={styles.certificateSectionTitle}>Certificado do evento</Text>
+                <Text style={styles.certificateSectionDescription}>
+                  Defina se este evento oferecerá certificado aos participantes.
+                </Text>
+              </View>
+              <View style={styles.certificateToggleOptions}>
+                <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: hasCertificate }}
+                  onPress={() => setHasCertificate(true)}
+                  style={[styles.certificateToggleOption, hasCertificate && styles.certificateToggleOptionSelected]}>
+                  <Text style={[styles.certificateToggleLabel, hasCertificate && styles.certificateToggleLabelSelected]}>
+                    Oferecer certificado
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: !hasCertificate }}
+                  onPress={() => setHasCertificate(false)}
+                  style={[styles.certificateToggleOption, !hasCertificate && styles.certificateToggleOptionSelected]}>
+                  <Text style={[styles.certificateToggleLabel, !hasCertificate && styles.certificateToggleLabelSelected]}>
+                    Não oferecer
+                  </Text>
+                </Pressable>
+              </View>
+
+              {hasCertificate ? (
+                <>
+                  <View>
+                    <Text style={styles.certificateFieldLabel}>CARGA HORÁRIA</Text>
+                    <View style={styles.certificateWorkloadInput}>
+                      <TextInput
+                        keyboardType="number-pad"
+                        onChangeText={(value) => setWorkloadHours(value.replace(/[^0-9]/g, ''))}
+                        placeholder="20"
+                        placeholderTextColor="#A0A5AB"
+                        style={styles.certificateWorkloadTextInput}
+                        value={workloadHours}
+                      />
+                      <Text style={styles.certificateWorkloadSuffix}>horas</Text>
+                    </View>
+                  </View>
+                  <View>
+                    <Text style={styles.certificateFieldLabel}>GRUPO DE ATIVIDADES COMPLEMENTARES</Text>
+                    <View style={styles.certificateGroupOptions}>
+                      {certificateGroups.map((group) => {
+                        const selected = hoursGroup === group.value;
+                        return (
+                          <Pressable
+                            accessibilityRole="radio"
+                            accessibilityState={{ selected }}
+                            key={group.value}
+                            onPress={() => setHoursGroup(group.value)}
+                            style={[styles.certificateGroupOption, selected && styles.certificateGroupOptionSelected]}>
+                            <Text style={[styles.certificateGroupLabel, selected && styles.certificateGroupLabelSelected]}>
+                              {group.label}
+                            </Text>
+                            <Text style={[styles.certificateGroupDescription, selected && styles.certificateGroupDescriptionSelected]}>
+                              {group.description}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.certificateDisabledHint}>
+                  Ao salvar, a configuração de certificado, a carga horária e o grupo serão removidos deste evento.
+                </Text>
+              )}
             </View>
 
             <LabeledInput
@@ -1218,6 +1365,116 @@ const styles = StyleSheet.create({
   },
   attendanceOptions: {
     gap: 8,
+  },
+  certificateSettings: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E0E2E5',
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 12,
+    marginTop: 4,
+    padding: 14,
+  },
+  certificateSectionTitle: {
+    color: '#24282D',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  certificateSectionDescription: {
+    color: '#6F7782',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 4,
+  },
+  certificateToggleOptions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  certificateToggleOption: {
+    alignItems: 'center',
+    backgroundColor: '#F3F3F4',
+    borderColor: 'transparent',
+    borderRadius: 6,
+    borderWidth: 1.5,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 42,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  certificateToggleOptionSelected: {
+    backgroundColor: '#FFF8D6',
+    borderColor: '#D7A900',
+  },
+  certificateToggleLabel: {
+    color: '#5F6670',
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  certificateToggleLabelSelected: {
+    color: '#242424',
+  },
+  certificateFieldLabel: {
+    color: '#535B64',
+    fontSize: 10,
+    fontWeight: '900',
+    marginBottom: 7,
+  },
+  certificateWorkloadInput: {
+    alignItems: 'center',
+    borderColor: '#E2E5E7',
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    minHeight: 44,
+    paddingHorizontal: 12,
+  },
+  certificateWorkloadTextInput: {
+    color: '#343A40',
+    flex: 1,
+    fontSize: 13,
+    height: 44,
+  },
+  certificateWorkloadSuffix: {
+    color: '#7B838C',
+    fontSize: 11,
+  },
+  certificateGroupOptions: {
+    gap: 7,
+  },
+  certificateGroupOption: {
+    borderColor: '#E1E3E5',
+    borderRadius: 7,
+    borderWidth: 1,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+  },
+  certificateGroupOptionSelected: {
+    backgroundColor: '#FFF8D6',
+    borderColor: '#D7A900',
+  },
+  certificateGroupLabel: {
+    color: '#565E67',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  certificateGroupLabelSelected: {
+    color: '#171717',
+  },
+  certificateGroupDescription: {
+    color: '#89919A',
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 3,
+  },
+  certificateGroupDescriptionSelected: {
+    color: '#655311',
+  },
+  certificateDisabledHint: {
+    color: '#747D87',
+    fontSize: 11,
+    lineHeight: 16,
   },
   attendanceOption: {
     backgroundColor: '#F3F3F4',
