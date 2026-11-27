@@ -1,8 +1,13 @@
-import { useRouter } from 'expo-router';
+import {
+  useRouter } from 'expo-router';
 import { useState } from 'react';
 import * as Animatable from 'react-native-animatable';
-import { Pressable, Text } from 'react-native';
+import {
+  Platform,
+  Pressable,
+} from 'react-native';
 
+import { AppText as Text } from '@/components/ui/app-text';
 import {
   AuthFeedbackModal,
   type AuthFeedbackModalState,
@@ -203,7 +208,7 @@ export default function ForgotPasswordScreen() {
       onBack={handleBack}
       footer={<AuthFeedbackModal modal={modal} onClose={closeModal} />}>
       {step === 'email' ? (
-        <Animatable.View key="email" animation="fadeInUp" duration={420} useNativeDriver>
+        <Animatable.View key="email" animation="fadeInUp" duration={420} useNativeDriver={Platform.OS !== 'web'}>
           <Text style={authTextStyles.title}>Esqueceu{'\n'}sua senha?</Text>
           <Text style={authTextStyles.description}>
             Insira o e-mail cadastrado. Vamos enviar um código para você criar uma nova senha.
@@ -236,7 +241,7 @@ export default function ForgotPasswordScreen() {
           />
         </Animatable.View>
       ) : (
-        <Animatable.View key="code" animation="fadeInUp" duration={420} useNativeDriver>
+        <Animatable.View key="code" animation="fadeInUp" duration={420} useNativeDriver={Platform.OS !== 'web'}>
           <Text style={authTextStyles.title}>Digite o{'\n'}código</Text>
           <Text style={authTextStyles.description}>
             Se <Text style={authTextStyles.descriptionEmphasis}>{email.trim()}</Text> estiver

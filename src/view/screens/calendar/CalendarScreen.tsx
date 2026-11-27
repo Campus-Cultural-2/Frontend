@@ -1,20 +1,25 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Platform,
   ActivityIndicator,
-  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
   useWindowDimensions,
   View,
 } from 'react-native';
 import * as Animatable from 'react-native-animatable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppText as Text } from '@/components/ui/app-text';
+import { AppToast } from '@/components/ui/app-toast';
+import { useAppToast } from '@/src/view/hooks/useAppToast';
+import { AppButton, AppPageHeader, appLayoutStyles, appSurfaceStyles } from '@/components/ui/app-ui';
+import { colors } from '@/src/view/theme/tokens';
 import {
   CampusEvent,
   isAuthSessionError,
@@ -27,13 +32,16 @@ import {
 import type { UserRole } from '@/src/lib/api/schemas';
 import { formatCampusTimeRange, getCampusDateKey } from '@/src/lib/datetime/campusTime';
 
-const PRIMARY_COLOR = '#FFCC00';
+const AnimatedText = Animatable.createAnimatableComponent(Text);
+
+const PRIMARY_COLOR = colors.brand.primary;
 const weekDays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
 type EventFilter = 'all' | 'subscribed' | 'mine';
 
 export default function CalendarScreen() {
   const router = useRouter();
+  const { showToast, toast } = useAppToast();
   const { newEventDate } = useLocalSearchParams<{ newEventDate?: string }>();
   const { width } = useWindowDimensions();
   const [events, setEvents] = useState<CampusEvent[]>([]);
@@ -112,7 +120,7 @@ export default function CalendarScreen() {
         setError(
           calendarError instanceof Error
             ? calendarError.message
-            : 'Não foi possível carregar a agenda.',
+            : 'Não foi possível carregar os eventos.',
         );
       } finally {
         setIsLoading(false);
@@ -169,15 +177,15 @@ export default function CalendarScreen() {
 
         // Rollback the optimistic change on failure.
         setEnrolledEventIds((current) => toggleId(current, eventId, wasEnrolled));
-        Alert.alert(
-          'Ops',
-          enrollError instanceof Error
+        showToast({
+          message: enrollError instanceof Error
             ? enrollError.message
             : 'Não foi possível atualizar sua inscrição.',
-        );
+          type: 'error',
+        });
       }
     },
-    [enrolledEventIds, router],
+    [enrolledEventIds, router, showToast],
   );
 
   return (
@@ -193,16 +201,8 @@ export default function CalendarScreen() {
           />
         }
         showsVerticalScrollIndicator={false}>
-        <Animatable.View
-          animation="fadeInDown"
-          duration={360}
-          style={styles.header}
-          useNativeDriver>
-          <View style={styles.headerSpacer} />
-          <Text style={styles.headerTitle}>Agenda</Text>
-          <Pressable accessibilityRole="button" hitSlop={10}>
-            <MaterialIcons name="search" size={22} color="#111111" />
-          </Pressable>
+        <Animatable.View animation="fadeInDown" duration={360} useNativeDriver={Platform.OS !== 'web'}>
+          <AppPageHeader title="Calendário de Eventos" />
         </Animatable.View>
 
         <Animatable.View
@@ -210,7 +210,7 @@ export default function CalendarScreen() {
           delay={80}
           duration={360}
           style={styles.monthRow}
-          useNativeDriver>
+          useNativeDriver={Platform.OS !== 'web'}>
           <Text style={styles.monthTitle}>{formatMonthTitle(monthDate)}</Text>
           <View style={styles.monthActions}>
             <Pressable
@@ -237,7 +237,7 @@ export default function CalendarScreen() {
           delay={140}
           duration={360}
           style={styles.filters}
-          useNativeDriver>
+          useNativeDriver={Platform.OS !== 'web'}>
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ selected: filter === 'all' }}
@@ -274,16 +274,16 @@ export default function CalendarScreen() {
             animation="pulse"
             iterationCount="infinite"
             style={styles.loadingRow}
-            useNativeDriver>
-            <ActivityIndicator color="#111111" />
-            <Text style={styles.loadingText}>Atualizando agenda...</Text>
+            useNativeDriver={Platform.OS !== 'web'}>
+            <ActivityIndicator color={colors.text.primary} />
+            <Text style={styles.loadingText}>Atualizando eventos...</Text>
           </Animatable.View>
         ) : null}
 
         {error ? (
-          <Animatable.Text animation="fadeIn" duration={320} style={styles.errorText} useNativeDriver>
+          <AnimatedText animation="fadeIn" duration={320} style={styles.errorText} useNativeDriver={Platform.OS !== 'web'}>
             {error}
-          </Animatable.Text>
+          </AnimatedText>
         ) : null}
 
         <Animatable.View
@@ -291,7 +291,7 @@ export default function CalendarScreen() {
           delay={180}
           duration={420}
           style={styles.calendarCard}
-          useNativeDriver>
+          useNativeDriver={Platform.OS !== 'web'}>
           <View style={styles.weekRow}>
             {weekDays.map((day, index) => (
               <Text key={`${day}-${index}`} style={styles.weekDay}>
@@ -339,19 +339,19 @@ export default function CalendarScreen() {
             accessibilityLabel="Cadastrar evento"
             onPress={() => router.push('/novo-evento' as never)}
             style={styles.createEventButton}>
-            <MaterialIcons name="add-circle-outline" size={19} color="#111111" />
+            <MaterialIcons name="add-circle-outline" size={19} color={colors.text.primary} />
             <Text style={styles.createEventButtonText}>Cadastrar evento</Text>
           </Pressable>
         ) : null}
 
-        <Animatable.Text
+        <AnimatedText
           animation="fadeIn"
           delay={260}
           duration={360}
           style={styles.dayTitle}
-          useNativeDriver>
+          useNativeDriver={Platform.OS !== 'web'}>
           {selectedDate ? formatSelectedDayTitle(selectedDate) : 'Selecione um dia'}
-        </Animatable.Text>
+        </AnimatedText>
 
         <View style={styles.eventList}>
           {selectedDayEvents.map((event, index) => (
@@ -381,18 +381,19 @@ export default function CalendarScreen() {
           ))}
 
           {!isLoading && selectedDate && selectedDayEvents.length === 0 ? (
-            <Animatable.Text
+            <AnimatedText
               animation="fadeIn"
               duration={320}
               style={styles.emptyText}
-              useNativeDriver>
+              useNativeDriver={Platform.OS !== 'web'}>
               {filter === 'subscribed'
                 ? 'Nenhum evento inscrito para este dia.'
                 : 'Nenhum evento para este dia.'}
-            </Animatable.Text>
+            </AnimatedText>
           ) : null}
         </View>
       </ScrollView>
+      <AppToast visible={Boolean(toast)} message={toast?.message ?? ''} type={toast?.type} />
     </SafeAreaView>
   );
 }
@@ -422,7 +423,7 @@ function AgendaCard({
       delay={320 + index * 90}
       duration={420}
       style={styles.agendaCard}
-      useNativeDriver>
+      useNativeDriver={Platform.OS !== 'web'}>
       <View style={styles.agendaAccent} />
       <View style={styles.agendaContent}>
         <View style={styles.agendaTop}>
@@ -453,48 +454,49 @@ function AgendaCard({
 
         <View style={styles.agendaMeta}>
           <View style={styles.metaItem}>
-            <MaterialIcons name="schedule" size={13} color="#6F7782" />
+            <MaterialIcons name="schedule" size={13} color={colors.text.secondary} />
             <Text style={styles.agendaMetaText}>{formatCampusTimeRange(event.event_datetime, event.event_end_datetime)}</Text>
           </View>
           <View style={styles.metaItem}>
-            <MaterialIcons name="place" size={13} color="#6F7782" />
+            <MaterialIcons name="place" size={13} color={colors.text.secondary} />
             <Text numberOfLines={1} style={styles.agendaMetaText}>
               {event.event_location}
             </Text>
           </View>
         </View>
-        {onDetails ? (
-          <Pressable accessibilityRole="button" onPress={onDetails} style={styles.detailsLink}>
-            <Text style={styles.detailsLinkText}>Ver detalhes do evento</Text>
-            <MaterialIcons name="arrow-forward" size={14} color="#454B53" />
-          </Pressable>
-        ) : null}
-        {onAttendance ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={onAttendance}
-            style={{ alignItems: 'center', flexDirection: 'row', gap: 6, marginTop: 8 }}>
-            <MaterialIcons name="how-to-reg" size={16} color="#111111" />
-            <Text style={{ color: '#111111', fontSize: 12, fontWeight: '700' }}>
-              Gerenciar presença
-            </Text>
-          </Pressable>
-        ) : null}
-        {enrolled && event.attendance_mode !== 'none' ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() =>
-              router.push({
-                pathname: '/meu-ingresso',
-                params: { eventId: String(event.id) },
-              } as never)
-            }
-            style={{ alignItems: 'center', flexDirection: 'row', gap: 6, marginTop: 8 }}>
-            <MaterialIcons name="how-to-reg" size={16} color="#111111" />
-            <Text style={{ color: '#111111', fontSize: 12, fontWeight: '700' }}>
-              Confirmar presença
-            </Text>
-          </Pressable>
+        {onDetails || onAttendance || (enrolled && event.attendance_mode !== 'none') ? (
+          <View style={styles.agendaFooterActions}>
+            {onDetails ? (
+              <AppButton
+                label="Detalhes"
+                variant="outline"
+                size="sm"
+                equalWidth
+                icon={<MaterialIcons name="arrow-forward" size={15} color={colors.text.heading} />}
+                onPress={onDetails}
+              />
+            ) : null}
+            {onAttendance ? (
+              <AppButton
+                label="Gerenciar presença"
+                variant="outline"
+                size="sm"
+                equalWidth
+                icon={<MaterialIcons name="how-to-reg" size={15} color={colors.text.heading} />}
+                onPress={onAttendance}
+              />
+            ) : null}
+            {enrolled && event.attendance_mode !== 'none' ? (
+              <AppButton
+                label="Confirmar presença"
+                variant="primary"
+                size="sm"
+                equalWidth
+                icon={<MaterialIcons name="qr-code-scanner" size={15} color={colors.text.primary} />}
+                onPress={() => router.push({ pathname: '/meu-ingresso', params: { eventId: String(event.id) } } as never)}
+              />
+            ) : null}
+          </View>
         ) : null}
       </View>
     </Animatable.View>
@@ -573,39 +575,25 @@ function isEventInPast(event: CampusEvent) {
 
 const styles = StyleSheet.create({
   safeArea: {
+    ...appLayoutStyles.screen,
     flex: 1,
-    backgroundColor: '#F7F7FA',
   },
   content: {
+    ...appLayoutStyles.content,
     paddingBottom: 112,
-    paddingHorizontal: 18,
-    paddingTop: 10,
+    paddingHorizontal: 16,
   },
   contentCompact: {
     paddingHorizontal: 14,
-  },
-  header: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    minHeight: 44,
-  },
-  headerSpacer: {
-    width: 22,
-  },
-  headerTitle: {
-    color: '#111111',
-    fontSize: 18,
-    fontWeight: '900',
   },
   monthRow: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 30,
+    marginTop: 4,
   },
   monthTitle: {
-    color: '#20242A',
+    color: colors.text.heading,
     fontSize: 18,
     fontWeight: '900',
   },
@@ -627,7 +615,7 @@ const styles = StyleSheet.create({
   },
   filterPill: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderRadius: 16,
     height: 28,
     justifyContent: 'center',
@@ -643,7 +631,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   filterTextActive: {
-    color: '#111111',
+    color: colors.text.primary,
   },
   loadingRow: {
     alignItems: 'center',
@@ -658,7 +646,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   errorText: {
-    color: '#B42318',
+    color: colors.status.danger,
     fontSize: 12,
     fontWeight: '800',
     lineHeight: 18,
@@ -666,15 +654,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   calendarCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    marginTop: 28,
+    ...appSurfaceStyles.card,
+    borderRadius: 16,
+    marginTop: 18,
     paddingHorizontal: 16,
     paddingVertical: 16,
-    shadowColor: '#111111',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.03,
-    shadowRadius: 14,
+    boxShadow: '0px 6px 14px rgba(17, 17, 17, 0.03)',
   },
   weekRow: {
     flexDirection: 'row',
@@ -708,12 +693,12 @@ const styles = StyleSheet.create({
     backgroundColor: PRIMARY_COLOR,
   },
   dayText: {
-    color: '#2F3338',
+    color: colors.text.heading,
     fontSize: 12,
     fontWeight: '700',
   },
   dayTextActive: {
-    color: '#FFFFFF',
+    color: colors.neutral.white,
     fontWeight: '900',
   },
   eventDot: {
@@ -735,7 +720,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   createEventButtonText: {
-    color: '#111111',
+    color: colors.text.primary,
     fontSize: 12,
     fontWeight: '900',
   },
@@ -757,25 +742,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   agendaCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 9,
+    ...appSurfaceStyles.card,
+    borderRadius: 16,
     flexDirection: 'row',
     minHeight: 84,
     overflow: 'hidden',
-    shadowColor: '#111111',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.03,
-    shadowRadius: 14,
+    boxShadow: '0px 5px 14px rgba(17, 17, 17, 0.03)',
   },
   agendaAccent: {
     backgroundColor: PRIMARY_COLOR,
-    width: 3,
+    width: 4,
   },
   agendaContent: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
   agendaActions: {
     alignItems: 'center',
@@ -784,7 +766,7 @@ const styles = StyleSheet.create({
   },
   editEventButton: {
     alignItems: 'center',
-    backgroundColor: '#F0F1F2',
+    backgroundColor: colors.surface.subtle,
     borderRadius: 14,
     height: 28,
     justifyContent: 'center',
@@ -797,10 +779,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   agendaTitle: {
-    color: '#2F3338',
+    color: colors.text.heading,
     flex: 1,
     fontSize: 14,
-    fontWeight: '900',
+    fontWeight: '700',
     lineHeight: 19,
   },
   statusPill: {
@@ -824,7 +806,7 @@ const styles = StyleSheet.create({
   agendaMeta: {
     alignItems: 'center',
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     gap: 8,
     marginTop: 10,
   },
@@ -847,8 +829,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   agendaMetaText: {
-    color: '#5F6670',
+    color: colors.text.secondary,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '500',
+  },
+  agendaFooterActions: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    gap: 8,
+    marginTop: 12,
   },
 });

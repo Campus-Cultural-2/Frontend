@@ -6,19 +6,20 @@ import { Ionicons } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
 import * as Animatable from 'react-native-animatable';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   type TextInputProps,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { AppText as Text, AppTextInput as TextInput } from '@/components/ui/app-text';
+import { AppButton, AppFieldLabel, appLayoutStyles, appSurfaceStyles } from '@/components/ui/app-ui';
+import { colors } from '@/src/view/theme/tokens';
 
 // --- moldura da tela ---------------------------------------------------------
 
@@ -40,13 +41,13 @@ export function AuthScreen({ badge, children, footer, onBack }: AuthScreenProps)
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           showsVerticalScrollIndicator={false}>
-          <Animatable.View animation="fadeInLeft" duration={360} useNativeDriver>
+          <Animatable.View animation="fadeInLeft" duration={360} useNativeDriver={Platform.OS !== 'web'}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Voltar"
               onPress={onBack}
               style={frameStyles.header}>
-              <Ionicons name="arrow-back" size={20} color="#FFC107" />
+              <Ionicons name="arrow-back" size={20} color={colors.brand.primary} />
               <Text style={frameStyles.headerText}>Voltar</Text>
             </Pressable>
           </Animatable.View>
@@ -56,7 +57,7 @@ export function AuthScreen({ badge, children, footer, onBack }: AuthScreenProps)
             delay={100}
             duration={360}
             style={frameStyles.badgeContainer}
-            useNativeDriver>
+            useNativeDriver={Platform.OS !== 'web'}>
             <Text style={frameStyles.badgeText}>{badge}</Text>
           </Animatable.View>
 
@@ -103,9 +104,7 @@ export function AuthField({
 }: AuthFieldProps) {
   return (
     <View style={componentStyles.inputWrapper}>
-      <Text style={componentStyles.inputLabel}>
-        {label} <Text style={componentStyles.requiredAsterisk}>*</Text>
-      </Text>
+      <AppFieldLabel label={label} required />
       <View
         style={[
           componentStyles.inputContainer,
@@ -122,7 +121,7 @@ export function AuthField({
           onChangeText={onChangeText}
           onFocus={onFocus}
           placeholder={placeholder}
-          placeholderTextColor="#9E9E9E"
+          placeholderTextColor={colors.text.muted}
           secureTextEntry={secureTextEntry}
           style={componentStyles.textInput}
           value={value}
@@ -144,19 +143,17 @@ type AuthPrimaryButtonProps = {
 
 export function AuthPrimaryButton({ disabled, label, loading, onPress }: AuthPrimaryButtonProps) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ busy: loading, disabled }}
+    <AppButton
+      label={label}
+      variant="primary"
+      size="lg"
+      fullWidth
       disabled={disabled}
+      loading={loading}
+      icon={<Ionicons name="arrow-forward" size={20} color={colors.text.primary} />}
+      iconPosition="right"
       onPress={onPress}
-      style={[componentStyles.primaryButton, disabled ? componentStyles.primaryButtonDisabled : null]}>
-      <Text style={componentStyles.primaryButtonText}>{label}</Text>
-      {loading ? (
-        <ActivityIndicator color="#000000" />
-      ) : (
-        <Ionicons name="arrow-forward" size={20} color="#000000" />
-      )}
-    </Pressable>
+    />
   );
 }
 
@@ -196,7 +193,7 @@ export function AuthFeedbackModal({ modal, onClose }: AuthFeedbackModalProps) {
           animation="zoomIn"
           duration={220}
           style={componentStyles.modalCard}
-          useNativeDriver>
+          useNativeDriver={Platform.OS !== 'web'}>
           <View
             style={[
               componentStyles.modalIconBox,
@@ -207,22 +204,17 @@ export function AuthFeedbackModal({ modal, onClose }: AuthFeedbackModalProps) {
             <Ionicons
               name={modal.type === 'success' ? 'checkmark' : 'close'}
               size={28}
-              color="#FFFFFF"
+              color={colors.text.inverse}
             />
           </View>
           <Text style={componentStyles.modalTitle}>{modal.title}</Text>
           <Text style={componentStyles.modalMessage}>{modal.message}</Text>
-          <Pressable
-            accessibilityRole="button"
+          <AppButton
+            label="OK"
+            variant={modal.type === 'success' ? 'primary' : 'danger'}
+            fullWidth
             onPress={onClose}
-            style={[
-              componentStyles.modalButton,
-              modal.type === 'success'
-                ? componentStyles.modalButtonSuccess
-                : componentStyles.modalButtonError,
-            ]}>
-            <Text style={componentStyles.modalButtonText}>OK</Text>
-          </Pressable>
+          />
         </Animatable.View>
       </View>
     </Modal>
@@ -235,20 +227,20 @@ export function AuthFeedbackModal({ modal, onClose }: AuthFeedbackModalProps) {
 // visual sem repetir os estilos.
 export const authTextStyles = StyleSheet.create({
   title: {
-    color: '#1A1A1A',
+    color: colors.text.primary,
     fontSize: 42,
     fontWeight: '900',
     lineHeight: 46,
     marginBottom: 24,
   },
   description: {
-    color: '#555555',
+    color: colors.text.secondary,
     fontSize: 18,
     lineHeight: 28,
     marginBottom: 44,
   },
   descriptionEmphasis: {
-    color: '#1A1A1A',
+    color: colors.text.primary,
     fontWeight: '700',
   },
   secondaryAction: {
@@ -257,13 +249,13 @@ export const authTextStyles = StyleSheet.create({
     paddingVertical: 8,
   },
   secondaryActionText: {
-    color: '#8A6D00',
+    color: colors.brand.emphasis,
     fontSize: 14,
     fontWeight: '700',
     textDecorationLine: 'underline',
   },
   noticeText: {
-    color: '#555555',
+    color: colors.text.secondary,
     fontSize: 12,
     marginTop: 4,
     textAlign: 'center',
@@ -271,14 +263,12 @@ export const authTextStyles = StyleSheet.create({
 });
 
 const frameStyles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
+  safeArea: { ...appLayoutStyles.screen },
   keyboardView: {
     flex: 1,
   },
   container: {
+    ...appLayoutStyles.authContent,
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 16,
@@ -291,20 +281,20 @@ const frameStyles = StyleSheet.create({
     marginBottom: 72,
   },
   headerText: {
-    color: '#1D1D1F',
+    color: colors.text.heading,
     fontSize: 16,
     fontWeight: '700',
   },
   badgeContainer: {
     alignSelf: 'flex-start',
-    backgroundColor: '#FFC107',
+    backgroundColor: colors.brand.primary,
     borderRadius: 3,
     marginBottom: 18,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
   badgeText: {
-    color: '#000000',
+    color: colors.text.primary,
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 3,
@@ -317,7 +307,7 @@ const componentStyles = StyleSheet.create({
     marginBottom: 42,
   },
   inputLabel: {
-    color: '#333333',
+    color: colors.text.heading,
     fontSize: 11,
     fontWeight: '900',
     letterSpacing: 1.2,
@@ -325,36 +315,33 @@ const componentStyles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   requiredAsterisk: {
-    color: '#8A6D00',
+    color: colors.brand.emphasis,
   },
   inputContainer: {
-    backgroundColor: '#FFFFFF',
-    borderBottomColor: '#D7D7D7',
-    borderBottomWidth: 2,
-    paddingHorizontal: 8,
-    paddingBottom: 12,
-    paddingTop: 8,
+    ...appSurfaceStyles.input,
+    minHeight: 48,
+    paddingVertical: 8,
   },
   inputFocused: {
-    backgroundColor: '#FFFBEA',
-    borderBottomColor: '#FFCC00',
+    backgroundColor: colors.brand.soft,
+    borderColor: colors.brand.primary,
   },
   inputError: {
-    borderBottomColor: '#F04438',
+    borderColor: colors.status.dangerStrong,
   },
   textInput: {
-    color: '#1A1A1A',
+    color: colors.text.primary,
     fontSize: 17,
     paddingVertical: 0,
   },
   errorText: {
-    color: '#F04438',
+    color: colors.status.dangerStrong,
     fontSize: 11,
     marginTop: 6,
   },
   primaryButton: {
     alignItems: 'center',
-    backgroundColor: '#FFC107',
+    backgroundColor: colors.brand.primary,
     borderRadius: 7,
     flexDirection: 'row',
     height: 64,
@@ -362,7 +349,7 @@ const componentStyles = StyleSheet.create({
     paddingHorizontal: 28,
   },
   primaryButtonText: {
-    color: '#000000',
+    color: colors.text.primary,
     fontSize: 16,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -379,13 +366,10 @@ const componentStyles = StyleSheet.create({
   },
   modalCard: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface.card,
     borderRadius: 8,
     padding: 28,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
+    boxShadow: '0px 10px 20px rgba(17, 17, 17, 0.15)',
     width: '100%',
     elevation: 10,
   },
@@ -398,20 +382,20 @@ const componentStyles = StyleSheet.create({
     width: 56,
   },
   modalIconSuccess: {
-    backgroundColor: '#22C55E',
+    backgroundColor: colors.status.success,
   },
   modalIconError: {
-    backgroundColor: '#F04438',
+    backgroundColor: colors.status.dangerStrong,
   },
   modalTitle: {
-    color: '#1A1A1A',
+    color: colors.text.primary,
     fontSize: 18,
     fontWeight: '900',
     marginBottom: 8,
     textAlign: 'center',
   },
   modalMessage: {
-    color: '#555555',
+    color: colors.text.secondary,
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 24,
@@ -425,13 +409,13 @@ const componentStyles = StyleSheet.create({
     width: '100%',
   },
   modalButtonSuccess: {
-    backgroundColor: '#FFC107',
+    backgroundColor: colors.brand.primary,
   },
   modalButtonError: {
-    backgroundColor: '#F04438',
+    backgroundColor: colors.status.dangerStrong,
   },
   modalButtonText: {
-    color: '#FFFFFF',
+    color: colors.surface.card,
     fontSize: 14,
     fontWeight: '900',
     letterSpacing: 1,

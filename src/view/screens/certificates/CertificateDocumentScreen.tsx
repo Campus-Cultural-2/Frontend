@@ -1,13 +1,20 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppText as Text } from '@/components/ui/app-text';
+import { appLayoutStyles, appSurfaceStyles } from '@/components/ui/app-ui';
+import { colors } from '@/src/view/theme/tokens';
 import { getCurrentUser, getEvent, isAuthSessionError } from '@/src/lib/api/campus';
 import type { CampusEvent, CurrentUser } from '@/src/lib/api/schemas';
 import { clearAuthToken } from '@/src/lib/auth/token';
-
 import {
   CERTIFICATE_COLORS,
   CertificateInfoBanner,
@@ -150,10 +157,12 @@ function formatDate(value: string) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { backgroundColor: CERTIFICATE_COLORS.background, flex: 1 },
+  safeArea: {
+    ...appLayoutStyles.screen, flex: 1 },
   loadingScreen: { alignItems: 'center', backgroundColor: CERTIFICATE_COLORS.background, flex: 1, justifyContent: 'center' },
-  content: { paddingBottom: 32, paddingHorizontal: 18, paddingTop: 15 },
-  documentPreview: { backgroundColor: '#FFFFFF', borderColor: CERTIFICATE_COLORS.primary, borderRadius: 10, borderWidth: 2, marginBottom: 13, minHeight: 300, padding: 14 },
+  content: {
+    ...appLayoutStyles.content, paddingBottom: 32 },
+  documentPreview: { ...appSurfaceStyles.card, borderColor: colors.border.strong, borderRadius: 16, marginBottom: 13, minHeight: 300, padding: 18 },
   documentHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   brandRow: { alignItems: 'center', flexDirection: 'row', gap: 5 },
   brandStripe: { backgroundColor: CERTIFICATE_COLORS.primary, borderRadius: 2, height: 15, width: 4 },
@@ -162,15 +171,15 @@ const styles = StyleSheet.create({
   documentEyebrow: { color: '#9298A0', fontSize: 8, letterSpacing: 1.1 },
   studentName: { color: '#262B30', fontSize: 15, fontWeight: '900', marginTop: 12, textAlign: 'center' },
   documentText: { color: '#666E77', fontSize: 9, marginTop: 10 },
-  eventName: { color: '#30343A', fontSize: 12, fontWeight: '800', marginTop: 4, textAlign: 'center' },
-  workload: { color: '#777F88', fontSize: 9, marginTop: 7 },
+  eventName: { color: colors.text.heading, fontSize: 12, fontWeight: '800', marginTop: 4, textAlign: 'center' },
+  workload: { color: colors.text.muted, fontSize: 9, marginTop: 7 },
   notIssuedStamp: { alignItems: 'center', backgroundColor: '#FFF1D1', borderRadius: 7, flexDirection: 'row', gap: 7, justifyContent: 'center', padding: 9 },
   notIssuedText: { color: '#8B6512', fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
-  detailsCard: { backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 10, borderWidth: 1, marginBottom: 13, padding: 13 },
+  detailsCard: { ...appSurfaceStyles.card, marginBottom: 13, padding: 16 },
   detailsHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  detailsTitle: { color: '#343A40', fontSize: 12, fontWeight: '900' },
-  detailDescription: { color: '#7B838C', fontSize: 9, marginTop: 10 },
-  detailDate: { color: '#7B838C', fontSize: 9, marginTop: 5 },
+  detailsTitle: { color: colors.text.heading, fontSize: 12, fontWeight: '900' },
+  detailDescription: { color: colors.text.muted, fontSize: 9, marginTop: 10 },
+  detailDate: { color: colors.text.muted, fontSize: 9, marginTop: 5 },
   buttonRow: { flexDirection: 'row', gap: 8, marginTop: 2 },
   buttonFlex: { flex: 1 },
 });

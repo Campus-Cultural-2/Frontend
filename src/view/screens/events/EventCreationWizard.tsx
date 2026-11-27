@@ -10,14 +10,14 @@ import {
   ScrollView,
   Share,
   StyleSheet,
-  Switch,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
 import type { DateType } from 'react-native-ui-datepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppText as Text, AppTextInput as TextInput } from '@/components/ui/app-text';
+import { AppButton, AppFieldLabel, AppPageHeader, appLayoutStyles, appSurfaceStyles } from '@/components/ui/app-ui';
+import { colors } from '@/src/view/theme/tokens';
 import { AppToast } from '@/components/ui/app-toast';
 import { CampusDatePicker } from '@/components/ui/campus-date-picker';
 import { createEvent, getValidAuthSession, isAuthSessionError } from '@/src/lib/api/campus';
@@ -30,10 +30,9 @@ import {
 } from '@/src/lib/datetime/campusTime';
 import { useAppToast } from '@/src/view/hooks/useAppToast';
 
-const PRIMARY = '#FFCC00';
-const INK = '#171717';
+const PRIMARY = colors.brand.primary;
+const INK = colors.text.primary;
 const MUTED = '#737982';
-const BACKGROUND = '#FAFAFA';
 const DESCRIPTION_LIMIT = 500;
 
 const HOURS_GROUPS: { value: HoursGroup; label: string }[] = [
@@ -125,7 +124,7 @@ export default function EventCreationWizard() {
         if (!active) return;
 
         if (session.payload.role !== 'professor') {
-          router.replace('/calendario' as never);
+          router.replace('/(tabs)/(main)/calendario' as never);
           return;
         }
         setHasPermission(true);
@@ -139,7 +138,7 @@ export default function EventCreationWizard() {
             message: 'Não foi possível verificar suas permissões para gerenciar eventos.',
             type: 'error',
           });
-          router.replace('/calendario' as never);
+          router.replace('/(tabs)/(main)/calendario' as never);
         }
       } finally {
         if (active) setIsCheckingPermission(false);
@@ -347,7 +346,8 @@ export default function EventCreationWizard() {
                 accessibilityLabel="Voltar"
                 onPress={() => {
                   if (step === 1) {
-                    router.replace('/calendario' as never);
+                    if (router.canGoBack()) router.back();
+                    else router.replace('/(tabs)/(main)/calendario' as never);
                   } else {
                     setStep((current) => (current - 1) as WizardStep);
                   }
@@ -357,18 +357,15 @@ export default function EventCreationWizard() {
                 <Text style={styles.backText}>Voltar</Text>
               </Pressable>
 
-              <View style={styles.titleBlock}>
-                <Text style={styles.pageTitle}>
-                  {step === 1 ? 'Novo evento' : step === 2 ? 'Certificado e vagas' : 'Revisar evento'}
-                </Text>
-                <Text style={styles.pageSubtitle}>
-                  {step === 1
-                    ? 'Etapa 1 de 3 · Informações principais'
-                    : step === 2
-                      ? 'Etapa 2 de 3 · Regras de participação'
-                      : 'Etapa 3 de 3 · Confirme antes de publicar'}
-                </Text>
-              </View>
+              <AppPageHeader
+                title={step === 1 ? 'Novo evento' : step === 2 ? 'Certificado e vagas' : 'Revisar evento'}
+                subtitle={step === 1
+                  ? 'Etapa 1 de 3 · Informações principais'
+                  : step === 2
+                    ? 'Etapa 2 de 3 · Regras de participação'
+                    : 'Etapa 3 de 3 · Confirme antes de publicar'}
+                style={styles.wizardPageHeader}
+              />
 
               <View style={styles.progressRow}>
                 {[1, 2, 3].map((item) => (
@@ -391,43 +388,24 @@ export default function EventCreationWizard() {
                     icon="auto-awesome"
                   />
 
-                  <View style={styles.twoColumnRow}>
-                    <View style={styles.flexField}>
-                      <WizardInput
-                        label="Data e horário"
-                        required
-                        placeholder="Selecione a data"
-                        value={form.dateTime}
-                        onPress={openDatePicker}
-                        error={errors.dateTime}
-                        icon="calendar-today"
-                      />
-                    </View>
-                    <View style={styles.timeHintField}>
-                      <Text style={styles.fieldLabel}>HORÁRIO</Text>
-                      <Pressable onPress={openDatePicker} style={styles.inputShell}>
-                        <MaterialIcons name="schedule" size={17} color="#777E87" />
-                        <Text style={[styles.inputValue, !selectedDate ? styles.placeholder : null]}>
-                          {selectedDate
-                            ? new Intl.DateTimeFormat('pt-BR', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                timeZone: CAMPUS_TIME_ZONE,
-                              }).format(selectedDate)
-                            : '09:00'}
-                        </Text>
-                      </Pressable>
-                    </View>
-                  </View>
+                  <WizardInput
+                    label="Início do evento"
+                    required
+                    placeholder="Selecione a data e o horário"
+                    value={form.dateTime}
+                    onPress={openDatePicker}
+                    error={errors.dateTime}
+                    icon="event"
+                  />
 
                   <WizardInput
-                    label="Encerramento"
+                    label="Encerramento do evento"
                     required
-                    placeholder="Selecione o horário de encerramento"
+                    placeholder="Selecione a data e o horário de encerramento"
                     value={form.endDateTime}
                     onPress={openEndDatePicker}
                     error={errors.endDateTime}
-                    icon="schedule"
+                    icon="event-available"
                   />
 
                   <WizardInput
@@ -441,30 +419,22 @@ export default function EventCreationWizard() {
                   />
 
                   <View>
-                    <Text style={styles.fieldLabel}>DESCRIÇÃO <Text style={styles.required}>*</Text></Text>
+                    <AppFieldLabel label="Descrição" required style={styles.sharedFieldLabel} />
                     <TextInput
                       multiline
                       maxLength={DESCRIPTION_LIMIT}
                       onChangeText={(value) => updateField('description', value)}
-                      placeholder="Informe agenda, público-alvo e requisitos."
+                      placeholder="Descreva o objetivo e a programação do evento."
                       placeholderTextColor="#A4A9B0"
                       style={[styles.descriptionInput, errors.description ? styles.inputError : null]}
                       textAlignVertical="top"
                       value={form.description}
                     />
                     <View style={styles.descriptionFooter}>
-                      <Text style={errors.description ? styles.errorText : styles.descriptionHint}>{errors.description ?? 'Inclua agenda, público-alvo e requisitos.'}</Text>
+                      {errors.description ? <Text style={styles.errorText}>{errors.description}</Text> : null}
                       <Text style={[styles.counterText, descriptionReachedLimit ? styles.counterLimit : null]}>
                         {form.description.length}/{DESCRIPTION_LIMIT}
                       </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.savedNotice}>
-                    <MaterialIcons name="check-circle" size={17} color="#24734F" />
-                    <View style={styles.noticeTextWrap}>
-                      <Text style={styles.noticeTitle}>Dados principais salvos</Text>
-                      <Text style={styles.noticeSubtitle}>Você poderá revisar tudo antes de publicar.</Text>
                     </View>
                   </View>
 
@@ -487,13 +457,22 @@ export default function EventCreationWizard() {
                         Disponível aos participantes elegíveis após o evento.
                       </Text>
                     </View>
-                    <Switch
+                    <Pressable
+                      accessibilityRole="switch"
                       accessibilityLabel="Emitir certificado"
-                      value={form.issueCertificate}
-                      onValueChange={(value) => updateField('issueCertificate', value)}
-                      trackColor={{ false: '#D5D8DC', true: PRIMARY }}
-                      thumbColor={form.issueCertificate ? INK : '#FFFFFF'}
-                    />
+                      accessibilityState={{ checked: form.issueCertificate }}
+                      onPress={() => updateField('issueCertificate', !form.issueCertificate)}
+                      style={[
+                        styles.certificateToggleTrack,
+                        form.issueCertificate ? styles.certificateToggleTrackActive : null,
+                      ]}>
+                      <View
+                        style={[
+                          styles.certificateToggleThumb,
+                          form.issueCertificate ? styles.certificateToggleThumbActive : null,
+                        ]}
+                      />
+                    </Pressable>
                   </View>
 
                   <View style={styles.twoColumnRow}>
@@ -510,7 +489,7 @@ export default function EventCreationWizard() {
                       />
                     </View>
                     <View style={styles.flexField}>
-                      <Text style={styles.fieldLabel}>GRUPO / CATEGORIA <Text style={styles.required}>*</Text></Text>
+                      <AppFieldLabel label="Grupo / categoria" required style={styles.sharedFieldLabel} />
                       <Pressable
                         onPress={() => setIsCategoryPickerVisible(true)}
                         style={styles.inputShell}>
@@ -534,8 +513,8 @@ export default function EventCreationWizard() {
                   />
 
                   <View>
-                    <Text style={styles.fieldLabel}>CONFIRMAÇÃO DE PRESENÇA</Text>
-                    <View style={{ gap: 8, marginTop: 8 }}>
+                    <AppFieldLabel label="Confirmação de presença" style={styles.sharedFieldLabel} />
+                    <View accessibilityRole="radiogroup" accessibilityLabel="Confirmação de presença" style={{ gap: 8, marginTop: 8 }}>
                       {ATTENDANCE_OPTIONS.map((option) => {
                         const selected = option.value === form.attendanceMode;
 
@@ -548,7 +527,7 @@ export default function EventCreationWizard() {
                             style={[
                               styles.certificateCard,
                               { gap: 4, paddingVertical: 12 },
-                              selected ? { borderColor: INK, borderWidth: 1.5 } : null,
+                              selected ? styles.attendanceOptionSelected : null,
                             ]}>
                             <View style={styles.certificateCopy}>
                               <Text style={styles.cardTitleSmall}>{option.label}</Text>
@@ -562,16 +541,6 @@ export default function EventCreationWizard() {
                           </Pressable>
                         );
                       })}
-                    </View>
-                  </View>
-
-                  <View style={styles.integrationCard}>
-                    <MaterialIcons name="extension" size={19} color="#4E535B" />
-                    <View style={styles.noticeTextWrap}>
-                      <Text style={styles.cardTitleSmall}>Integração acadêmica</Text>
-                      <Text style={styles.cardDescriptionSmall}>
-                        O envio oficial das horas ao sistema institucional será disponibilizado futuramente.
-                      </Text>
                     </View>
                   </View>
 
@@ -620,13 +589,14 @@ export default function EventCreationWizard() {
                     disabled={isPublishing}
                     onPress={() => void publishEvent()}
                   />
-                  <Pressable
-                    accessibilityRole="button"
+                  <AppButton
+                    label="Voltar e editar"
+                    variant="outline"
+                    fullWidth
                     disabled={isPublishing}
                     onPress={() => setStep(2)}
-                    style={styles.secondaryButton}>
-                    <Text style={styles.secondaryButtonText}>Voltar e editar</Text>
-                  </Pressable>
+                    style={styles.secondaryAction}
+                  />
                 </View>
               ) : null}
             </>
@@ -670,10 +640,14 @@ export default function EventCreationWizard() {
                 icon="arrow-forward"
                 onPress={() => router.replace({ pathname: '/calendario', params: selectedDate ? { newEventDate: toCampusDateTimeIso(selectedDate) } : {} } as never)}
               />
-              <Pressable accessibilityRole="button" onPress={() => void shareEvent()} style={styles.secondaryButton}>
-                <MaterialIcons name="share" size={17} color={INK} />
-                <Text style={styles.secondaryButtonText}>Compartilhar</Text>
-              </Pressable>
+              <AppButton
+                label="Compartilhar"
+                variant="outline"
+                fullWidth
+                icon={<MaterialIcons name="share" size={17} color={INK} />}
+                onPress={() => void shareEvent()}
+                style={styles.secondaryAction}
+              />
               {publishedEventId !== null ? (
                 <Text style={styles.eventIdHint}>Código do evento: {publishedEventId}</Text>
               ) : null}
@@ -690,9 +664,9 @@ export default function EventCreationWizard() {
         <View style={styles.modalOverlay}>
           <View style={styles.dateModalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{pickerTarget === 'end' ? 'Encerramento' : 'Data e horário'}</Text>
+              <Text style={styles.modalTitle}>{pickerTarget === 'end' ? 'Encerramento do evento' : 'Início do evento'}</Text>
               <Pressable accessibilityRole="button" onPress={() => setIsDatePickerVisible(false)} hitSlop={10}>
-                <MaterialIcons name="close" size={22} color="#5F6670" />
+                <MaterialIcons name="close" size={22} color={colors.text.secondary} />
               </Pressable>
             </View>
             <CampusDatePicker
@@ -791,7 +765,7 @@ function WizardInput({
 
   return (
     <View style={styles.fieldWrap}>
-      <Text style={styles.fieldLabel}>{label.toUpperCase()} {required ? <Text style={styles.required}>*</Text> : null}</Text>
+      <AppFieldLabel label={label} required={required} style={styles.sharedFieldLabel} />
       {onPress ? <Pressable onPress={onPress}>{shell}</Pressable> : shell}
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
@@ -822,14 +796,17 @@ function PrimaryButton({
   disabled?: boolean;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
+    <AppButton
+      label={label}
+      variant="primary"
+      size="lg"
+      fullWidth
       disabled={disabled}
+      loading={disabled}
+      icon={!disabled ? <MaterialIcons name={icon} size={17} color={INK} /> : undefined}
       onPress={onPress}
-      style={[styles.primaryButton, disabled ? styles.primaryButtonDisabled : null]}>
-      {disabled ? <ActivityIndicator size="small" color={INK} /> : <MaterialIcons name={icon} size={17} color={INK} />}
-      <Text style={styles.primaryButtonText}>{label}</Text>
-    </Pressable>
+      style={styles.primaryAction}
+    />
   );
 }
 
@@ -863,16 +840,17 @@ function toNativeDate(value: DateType): Date | null {
 
 const styles = StyleSheet.create({
   safeArea: {
+    ...appLayoutStyles.screen,
     flex: 1,
-    backgroundColor: BACKGROUND,
   },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
+    ...appLayoutStyles.content,
     flexGrow: 1,
-    paddingHorizontal: 18,
-    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingTop: 20,
     paddingBottom: 42,
   },
   backButton: {
@@ -888,22 +866,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
   },
-  titleBlock: {
-    paddingBottom: 18,
-  },
+  wizardPageHeader: { marginBottom: 18 },
   pageTitle: {
     color: INK,
-    fontSize: 25,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-    lineHeight: 31,
+    fontSize: 22,
+    fontWeight: '600',
+    letterSpacing: -0.25,
+    lineHeight: 30,
   },
-  pageSubtitle: {
-    color: '#737982',
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 3,
-  },
+  pageSubtitle: { color: '#737982', fontSize: 12, lineHeight: 18, marginTop: 4 },
   progressRow: {
     flexDirection: 'row',
     gap: 6,
@@ -924,33 +895,24 @@ const styles = StyleSheet.create({
   fieldWrap: {
     marginBottom: 2,
   },
-  fieldLabel: {
-    color: '#2B2E32',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.6,
-    marginBottom: 7,
-  },
+  sharedFieldLabel: { marginBottom: 7 },
   required: {
-    color: '#F04438',
+    color: colors.status.dangerStrong,
     fontWeight: '900',
   },
   inputShell: {
+    ...appSurfaceStyles.input,
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#D9DDE2',
-    borderRadius: 6,
-    borderWidth: 1,
     flexDirection: 'row',
     gap: 10,
-    minHeight: 52,
+    minHeight: 48,
     paddingHorizontal: 13,
   },
   inputValue: {
-    color: '#202020',
+    color: colors.text.primary,
     flex: 1,
-    fontSize: 15,
-    minHeight: 50,
+    fontSize: 14,
+    minHeight: 46,
     paddingHorizontal: 0,
     paddingVertical: 10,
   },
@@ -963,17 +925,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   inputError: {
-    borderColor: '#F04438',
+    borderColor: colors.status.dangerStrong,
   },
   errorText: {
     color: '#D92D20',
     fontSize: 12,
-    marginTop: 5,
-  },
-  descriptionHint: {
-    color: '#858B92',
-    fontSize: 11,
-    lineHeight: 16,
     marginTop: 5,
   },
   twoColumnRow: {
@@ -984,20 +940,14 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  timeHintField: {
-    flex: 0.65,
-    minWidth: 105,
-    paddingTop: 0,
-  },
   descriptionInput: {
-    backgroundColor: '#F3F3F4',
-    borderColor: '#E0E2E5',
-    borderRadius: 6,
-    borderWidth: 1,
-    color: '#202020',
-    fontSize: 15,
-    lineHeight: 21,
-    minHeight: 132,
+    ...appSurfaceStyles.input,
+    backgroundColor: colors.surface.card,
+    borderRadius: 12,
+    color: colors.text.primary,
+    fontSize: 14,
+    lineHeight: 20,
+    minHeight: 116,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
@@ -1017,30 +967,8 @@ const styles = StyleSheet.create({
     color: '#D92D20',
     fontWeight: '800',
   },
-  savedNotice: {
-    alignItems: 'center',
-    backgroundColor: '#E8F2F9',
-    borderRadius: 7,
-    flexDirection: 'row',
-    gap: 11,
-    marginTop: 2,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  noticeTextWrap: {
-    flex: 1,
-  },
-  noticeTitle: {
-    color: '#25557C',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  noticeSubtitle: {
-    color: '#677786',
-    fontSize: 11,
-    lineHeight: 16,
-    marginTop: 4,
-  },
+  primaryAction: { alignSelf: 'stretch' },
+  secondaryAction: { alignSelf: 'stretch' },
   primaryButton: {
     alignItems: 'center',
     backgroundColor: PRIMARY,
@@ -1051,10 +979,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 4,
     paddingHorizontal: 16,
-    shadowColor: '#C68F00',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
+    boxShadow: '0px 5px 10px rgba(198, 143, 0, 0.16)',
     elevation: 4,
   },
   primaryButtonDisabled: {
@@ -1069,7 +994,7 @@ const styles = StyleSheet.create({
   },
   certificateCard: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderColor: '#E1E3E6',
     borderRadius: 8,
     borderWidth: 1,
@@ -1078,19 +1003,43 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 18,
-    shadowColor: '#111111',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 7,
+    boxShadow: '0px 2px 7px rgba(17, 17, 17, 0.06)',
     elevation: 2,
   },
   certificateCopy: {
     flex: 1,
   },
+  certificateToggleTrack: {
+    alignItems: 'center',
+    backgroundColor: colors.border.strong,
+    borderRadius: 999,
+    height: 26,
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    width: 46,
+  },
+  certificateToggleTrackActive: {
+    alignItems: 'flex-end',
+    backgroundColor: colors.brand.primary,
+  },
+  certificateToggleThumb: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: 10,
+    height: 20,
+    width: 20,
+  },
+  certificateToggleThumbActive: {
+    backgroundColor: colors.text.primary,
+  },
+  attendanceOptionSelected: {
+    backgroundColor: colors.brand.soft,
+    borderColor: colors.brand.primary,
+    borderWidth: 1.5,
+  },
   cardTitle: {
     color: '#26292D',
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
     lineHeight: 22,
   },
   cardDescription: {
@@ -1098,17 +1047,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     marginTop: 5,
-  },
-  integrationCard: {
-    alignItems: 'flex-start',
-    backgroundColor: '#F3F3F4',
-    borderColor: '#E0E2E3',
-    borderRadius: 7,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 2,
-    padding: 15,
   },
   cardTitleSmall: {
     color: '#34383D',
@@ -1125,16 +1063,13 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   reviewCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderColor: '#E1E3E6',
     borderRadius: 8,
     borderWidth: 1,
     elevation: 2,
     padding: 16,
-    shadowColor: '#111111',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
+    boxShadow: '0px 2px 8px rgba(17, 17, 17, 0.07)',
   },
   reviewTopLine: {
     alignItems: 'flex-start',
@@ -1143,7 +1078,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   reviewEventName: {
-    color: '#202124',
+    color: colors.text.heading,
     flex: 1,
     fontSize: 17,
     fontWeight: '800',
@@ -1181,7 +1116,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   reviewLineValue: {
-    color: '#30343A',
+    color: colors.text.heading,
     fontSize: 13,
     lineHeight: 18,
     marginTop: 3,
@@ -1211,8 +1146,8 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#111111',
+    backgroundColor: colors.neutral.white,
+    borderColor: colors.text.primary,
     borderRadius: 7,
     borderWidth: 1.25,
     flexDirection: 'row',
@@ -1221,7 +1156,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   secondaryButtonText: {
-    color: '#171717',
+    color: colors.text.primary,
     fontSize: 13,
     fontWeight: '800',
   },
@@ -1231,17 +1166,14 @@ const styles = StyleSheet.create({
   },
   successCard: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderColor: '#E1E3E6',
     borderRadius: 10,
     borderWidth: 1,
     marginTop: 4,
     paddingHorizontal: 24,
     paddingVertical: 30,
-    shadowColor: '#111111',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 9,
+    boxShadow: '0px 3px 9px rgba(17, 17, 17, 0.06)',
     elevation: 2,
   },
   successIconCircle: {
@@ -1266,7 +1198,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   openRegistrationsBadge: {
-    backgroundColor: '#E4F5EB',
+    backgroundColor: colors.status.successSoft,
     borderRadius: 12,
     marginTop: 14,
     paddingHorizontal: 12,
@@ -1279,19 +1211,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   successEventCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderColor: '#E1E3E6',
     borderRadius: 8,
     borderWidth: 1,
     padding: 16,
-    shadowColor: '#111111',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 7,
+    boxShadow: '0px 2px 7px rgba(17, 17, 17, 0.05)',
     elevation: 1,
   },
   successEventName: {
-    color: '#202124',
+    color: colors.text.heading,
     fontSize: 16,
     fontWeight: '700',
     lineHeight: 22,
@@ -1302,7 +1231,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   successDetailCell: {
-    backgroundColor: '#F3F3F4',
+    backgroundColor: colors.surface.subtle,
     borderRadius: 6,
     flex: 1,
     padding: 11,
@@ -1314,7 +1243,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   successDetailValue: {
-    color: '#30343A',
+    color: colors.text.heading,
     fontSize: 12,
     lineHeight: 17,
     marginTop: 5,
@@ -1343,7 +1272,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   dateModalCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderRadius: 10,
     maxWidth: 450,
     padding: 18,
@@ -1395,7 +1324,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   categoryModalCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderRadius: 10,
     maxWidth: 400,
     padding: 18,

@@ -1,6 +1,14 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useEffect, useRef } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Modal,
+  StyleSheet,
+  View,
+} from 'react-native';
+
+import { AppText as Text } from '@/components/ui/app-text';
+import { AppButton } from '@/components/ui/app-ui';
+import { colors } from '@/src/view/theme/tokens';
 
 type QrScannerModalProps = {
   onClose: () => void;
@@ -47,25 +55,15 @@ export function QrScannerModal({ onClose, onScanned, title, visible }: QrScanner
             </Text>
           </View>
         )}
-        <Pressable accessibilityRole="button" onPress={onClose} style={styles.close}>
-          <Text style={styles.closeText}>Fechar</Text>
-        </Pressable>
+        <AppButton label="Fechar" variant="primary" size="lg" fullWidth onPress={onClose} />
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { backgroundColor: '#111111', flex: 1, gap: 16, padding: 16, paddingTop: 48 },
-  title: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', textAlign: 'center' },
+  container: { backgroundColor: colors.text.primary, flex: 1, gap: 16, padding: 16, paddingTop: 48 },
+  title: { color: colors.surface.card, fontSize: 18, fontWeight: '700', textAlign: 'center' },
   camera: { borderRadius: 12, flex: 1, justifyContent: 'center', overflow: 'hidden', padding: 16 },
-  message: { color: '#FFFFFF', textAlign: 'center' },
-  close: {
-    alignItems: 'center',
-    backgroundColor: '#FFCC00',
-    borderRadius: 6,
-    height: 46,
-    justifyContent: 'center',
-  },
-  closeText: { color: '#111111', fontWeight: '700' },
+  message: { color: colors.surface.card, textAlign: 'center' },
 });

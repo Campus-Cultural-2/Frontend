@@ -7,12 +7,13 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppText as Text, AppTextInput as TextInput } from '@/components/ui/app-text';
+import { AppButton, AppEmptyState, appLayoutStyles, appSurfaceStyles } from '@/components/ui/app-ui';
+import { colors } from '@/src/view/theme/tokens';
 import {
   getEvent,
   getValidAuthSession,
@@ -22,11 +23,9 @@ import {
 } from '@/src/lib/api/campus';
 import type { CampusEvent, Participant } from '@/src/lib/api/schemas';
 import { clearAuthToken } from '@/src/lib/auth/token';
-
 import {
   CERTIFICATE_COLORS,
   CertificateInfoBanner,
-  CertificatePrimaryButton,
   CertificateScreenHeading,
   CertificateStatusPill,
   formatSubscriptionDate,
@@ -102,12 +101,30 @@ export default function CertificateParticipantsScreen() {
     try {
       const session = await getValidAuthSession();
       if (session.payload.role !== 'professor' && session.payload.role !== 'admin') {
-        router.replace('/(tabs)/certificados' as never);
+        router.replace('/(tabs)/(main)/certificados' as never);
         return;
       }
 
       const eventData = await getEvent(eventId);
       setEvent(eventData);
+
+      // Evita iniciar uma consulta que a API recusará para professores de outros eventos.
+      const currentUserId = Number(session.payload.sub);
+      if (
+        session.payload.role === 'professor' &&
+        Number.isFinite(currentUserId) &&
+        typeof eventData.user_id === 'number' &&
+        eventData.user_id !== currentUserId
+      ) {
+        setPermissionDenied(true);
+        setParticipantsError(
+          'Somente o professor responsável pelo evento ou um administrador pode consultar os participantes.',
+        );
+        setParticipants([]);
+        setHasLoadedParticipants(false);
+        return;
+      }
+
       await loadParticipants();
     } catch (loadError) {
       if (isAuthSessionError(loadError)) {
@@ -151,14 +168,6 @@ export default function CertificateParticipantsScreen() {
     });
   }, [filter, participants, search]);
 
-  if (isLoadingEvent && !event) {
-    return (
-      <SafeAreaView style={styles.loadingScreen}>
-        <ActivityIndicator color={CERTIFICATE_COLORS.primary} size="large" />
-      </SafeAreaView>
-    );
-  }
-
   const presentCount = participants.filter((participant) => participant.attended).length;
   const attendanceMode = event?.attendance_mode ?? 'none';
 
@@ -180,6 +189,13 @@ export default function CertificateParticipantsScreen() {
           subtitle={event ? `${event.name} · ${event.subscribers_count ?? participants.length} inscritos` : 'Consulte os alunos inscritos'}
           onBack={() => router.back()}
         />
+
+        {isLoadingEvent && !event ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator color={CERTIFICATE_COLORS.primary} size="small" />
+            <Text style={styles.loadingText}>Verificando acesso ao evento...</Text>
+          </View>
+        ) : null}
 
         {eventError ? (
           <CertificateInfoBanner title="Não foi possível carregar o evento" message={eventError} tone="error" />
@@ -206,7 +222,7 @@ export default function CertificateParticipantsScreen() {
             ) : (
               <>
                 <View style={styles.searchBox}>
-                  <MaterialIcons name="search" size={20} color="#89919A" />
+                  <MaterialIcons name="search" size={20} color={colors.text.muted} />
                   <TextInput
                     onChangeText={setSearch}
                     placeholder="Buscar por nome ou RA"
@@ -216,7 +232,7 @@ export default function CertificateParticipantsScreen() {
                   />
                   {search.length > 0 ? (
                     <Pressable accessibilityRole="button" accessibilityLabel="Limpar busca" onPress={() => setSearch('')}>
-                      <MaterialIcons name="close" size={18} color="#89919A" />
+                      <MaterialIcons name="close" size={18} color={colors.text.muted} />
                     </Pressable>
                   ) : null}
                 </View>
@@ -253,23 +269,20 @@ export default function CertificateParticipantsScreen() {
                 ) : null}
 
                 {!isLoadingParticipants && !participantsError && hasLoadedParticipants && filteredParticipants.length === 0 ? (
-                  <View style={styles.emptyCard}>
-                    <MaterialIcons name="person-search" size={27} color="#9298A0" />
-                    <Text style={styles.emptyTitle}>
-                      {search
-                        ? 'Nenhum resultado encontrado'
-                        : filter === 'present'
-                          ? 'Nenhum participante presente'
-                          : filter === 'pending'
-                            ? 'Nenhum participante pendente'
-                            : 'Nenhum aluno inscrito'}
-                    </Text>
-                    <Text style={styles.emptyDescription}>
-                      {search
-                        ? 'Tente pesquisar por outro nome ou RA.'
-                        : 'Os alunos inscritos neste evento aparecerão aqui.'}
-                    </Text>
-                  </View>
+                  <AppEmptyState
+                    icon={<MaterialIcons name="person-search" size={27} color={colors.text.muted} />}
+                    title={search
+                      ? 'Nenhum resultado encontrado'
+                      : filter === 'present'
+                        ? 'Nenhum participante presente'
+                        : filter === 'pending'
+                          ? 'Nenhum participante pendente'
+                          : 'Nenhum aluno inscrito'}
+                    description={search
+                      ? 'Tente pesquisar por outro nome ou RA.'
+                      : 'Os alunos inscritos neste evento aparecerão aqui.'}
+                    style={styles.emptyCard}
+                  />
                 ) : null}
 
                 {!participantsError
@@ -290,16 +303,23 @@ export default function CertificateParticipantsScreen() {
                   />
                 ) : null}
 
-                <CertificatePrimaryButton
+                <AppButton
                   label={event.has_certificate === true ? 'Configurar certificado' : 'Habilitar certificado'}
+                  variant="primary"
+                  size="md"
+                  fullWidth
+                  icon={<MaterialIcons name="arrow-forward" size={17} color={colors.text.primary} />}
                   onPress={() => router.push({ pathname: '/certificados-configurar', params: { eventId: String(event.id) } } as never)}
-                  icon="arrow-forward"
                 />
 
                 {participantsError ? (
-                  <Pressable accessibilityRole="button" onPress={() => void loadParticipants()} style={styles.retryLink}>
-                    <Text style={styles.retryText}>Tentar carregar os participantes novamente</Text>
-                  </Pressable>
+                  <AppButton
+                    label="Tentar carregar os participantes novamente"
+                    variant="outline"
+                    size="md"
+                    onPress={() => void loadParticipants()}
+                    style={styles.retryLink}
+                  />
                 ) : null}
               </>
             )}
@@ -394,38 +414,37 @@ function readId(value: string | string[] | undefined) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { backgroundColor: CERTIFICATE_COLORS.background, flex: 1 },
-  loadingScreen: { alignItems: 'center', backgroundColor: CERTIFICATE_COLORS.background, flex: 1, justifyContent: 'center' },
-  content: { paddingBottom: 36, paddingHorizontal: 18, paddingTop: 18 },
-  eventSummary: { backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 12, borderWidth: 1, marginBottom: 14, padding: 15 },
-  eventName: { color: '#343A40', fontSize: 15, fontWeight: '900', lineHeight: 20 },
+  safeArea: {
+    ...appLayoutStyles.screen, flex: 1 },
+  content: {
+    ...appLayoutStyles.content, paddingBottom: 36 },
+  eventSummary: { ...appSurfaceStyles.card, marginBottom: 14, padding: 16 },
+  eventName: { color: colors.text.heading, fontSize: 16, fontWeight: '700', lineHeight: 22 },
   eventSummaryMeta: { flexDirection: 'row', gap: 13, marginTop: 8 },
-  eventMetaText: { color: '#7B838C', fontSize: 11 },
-  searchBox: { alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 10, borderWidth: 1, flexDirection: 'row', gap: 9, height: 48, paddingHorizontal: 13 },
-  searchInput: { color: '#343A40', flex: 1, fontSize: 13, height: '100%' },
+  eventMetaText: { color: colors.text.muted, fontSize: 11 },
+  searchBox: { ...appSurfaceStyles.input, alignItems: 'center', flexDirection: 'row', gap: 9, height: 48, minHeight: 48 },
+  searchInput: { color: colors.text.heading, flex: 1, fontSize: 13, height: '100%' },
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14, marginTop: 12 },
-  filterChip: { backgroundColor: '#FFFFFF', borderColor: '#E1E3E5', borderRadius: 18, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 9 },
+  filterChip: { backgroundColor: colors.neutral.white, borderColor: colors.border.default, borderRadius: 18, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 9 },
   filterChipSelected: { backgroundColor: CERTIFICATE_COLORS.primary, borderColor: CERTIFICATE_COLORS.primary },
   filterChipPressed: { opacity: 0.75 },
   filterText: { color: '#59616A', fontSize: 11, fontWeight: '700' },
-  filterTextSelected: { color: '#171717', fontWeight: '900' },
+  filterTextSelected: { color: colors.text.primary, fontWeight: '700' },
   countBanner: { alignItems: 'center', backgroundColor: '#FFF5C7', borderRadius: 9, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, paddingHorizontal: 13, paddingVertical: 11 },
-  countBannerText: { color: '#5D511F', fontSize: 12, fontWeight: '900' },
+  countBannerText: { color: '#5D511F', fontSize: 12, fontWeight: '700' },
   countBannerDetail: { color: '#77672A', fontSize: 10, marginTop: 3 },
   loadingRow: { alignItems: 'center', flexDirection: 'row', gap: 9, justifyContent: 'center', paddingVertical: 24 },
   loadingText: { color: '#727A84', fontSize: 12 },
-  participantCard: { backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 12, borderWidth: 1, marginBottom: 10, padding: 14 },
+  participantCard: { ...appSurfaceStyles.card, marginBottom: 10, padding: 14 },
   participantTop: { alignItems: 'center', flexDirection: 'row', gap: 11 },
   avatar: { alignItems: 'center', backgroundColor: CERTIFICATE_COLORS.primary, borderRadius: 20, height: 40, justifyContent: 'center', width: 40 },
-  avatarText: { color: '#171717', fontSize: 12, fontWeight: '900' },
+  avatarText: { color: colors.text.primary, fontSize: 12, fontWeight: '900' },
   identity: { flex: 1, gap: 4 },
-  participantName: { color: '#343A40', fontSize: 13, fontWeight: '900', lineHeight: 18 },
-  participantRa: { color: '#858C94', fontSize: 11 },
-  participantMeta: { borderTopColor: '#EEF0F1', borderTopWidth: 1, marginTop: 11, paddingTop: 9 },
+  participantName: { color: colors.text.heading, fontSize: 13, fontWeight: '600', lineHeight: 18 },
+  participantRa: { color: colors.text.muted, fontSize: 11 },
+  participantMeta: { borderTopColor: colors.border.default, borderTopWidth: 1, marginTop: 11, paddingTop: 9 },
   presenceDetail: { color: '#707982', fontSize: 11, lineHeight: 16 },
-  emptyCard: { alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 12, borderWidth: 1, marginTop: 8, paddingHorizontal: 24, paddingVertical: 30 },
-  emptyTitle: { color: '#343A40', fontSize: 14, fontWeight: '900', marginTop: 10 },
-  emptyDescription: { color: '#858C94', fontSize: 12, lineHeight: 17, marginTop: 6, textAlign: 'center' },
-  retryLink: { alignSelf: 'center', padding: 13 },
+  emptyCard: { ...appSurfaceStyles.card, marginTop: 8 },
+  retryLink: { alignSelf: 'center', marginTop: 8 },
   retryText: { color: '#6C5600', fontSize: 11, fontWeight: '800' },
 });

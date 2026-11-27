@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { useDefaultStyles } from 'react-native-ui-datepicker';
 
+import { colors, fontFamilies } from '@/src/view/theme/tokens';
+
 const navigationStyles = {
   button_prev: {
     alignItems: 'center' as const,
@@ -27,33 +29,39 @@ const selectorStyles = {
     marginBottom: 8,
   },
   month_selector_label: {
-    color: '#20242A',
+    color: colors.text.heading,
+    fontFamily: fontFamilies.extraBold,
     fontSize: 15,
     fontWeight: '800' as const,
   },
   year_selector_label: {
-    color: '#20242A',
+    color: colors.text.heading,
+    fontFamily: fontFamilies.extraBold,
     fontSize: 15,
     fontWeight: '800' as const,
   },
   weekday_label: {
-    color: '#5F6670',
+    color: colors.text.secondary,
+    fontFamily: fontFamilies.extraBold,
     fontSize: 11,
     fontWeight: '800' as const,
     textTransform: 'uppercase' as const,
   },
   day_label: {
-    color: '#20242A',
+    color: colors.text.heading,
+    fontFamily: fontFamilies.semibold,
     fontSize: 15,
     fontWeight: '600' as const,
   },
   month_label: {
-    color: '#20242A',
+    color: colors.text.heading,
+    fontFamily: fontFamilies.bold,
     fontSize: 14,
     fontWeight: '700' as const,
   },
   year_label: {
-    color: '#20242A',
+    color: colors.text.heading,
+    fontFamily: fontFamilies.bold,
     fontSize: 14,
     fontWeight: '700' as const,
   },
@@ -82,15 +90,16 @@ export function useCampusDatePickerStyles() {
 
 export const campusDatePickerBrand = {
   selected: {
-    backgroundColor: '#FFCC00',
-    borderColor: '#FFCC00',
+    backgroundColor: colors.brand.primary,
+    borderColor: colors.brand.primary,
   },
   selected_label: {
-    color: '#111111',
+    color: colors.text.primary,
+    fontFamily: fontFamilies.black,
     fontWeight: '900' as const,
   },
   today: {
-    borderColor: '#FFCC00',
+    borderColor: colors.brand.primary,
     borderWidth: 1,
   },
 };

@@ -11,12 +11,13 @@ import {
   Pressable,
   RefreshControl,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppText as Text, AppTextInput as TextInput } from '@/components/ui/app-text';
+import { AppBadge, AppButton, AppEmptyState, AppPageHeader, appLayoutStyles, appSurfaceStyles } from '@/components/ui/app-ui';
+import { colors } from '@/src/view/theme/tokens';
 import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 import {
   getCurrentUser,
@@ -59,7 +60,7 @@ export default function UserListScreen() {
     try {
       const session = await getValidAuthSession();
       if (session.payload.role !== 'professor' && session.payload.role !== 'admin') {
-        router.replace('/(tabs)' as never);
+        router.replace('/(tabs)/(main)' as never);
         return;
       }
 
@@ -212,11 +213,11 @@ export default function UserListScreen() {
           }
           ListHeaderComponent={
             <View>
-              <Text style={styles.pageTitle}>Usuários</Text>
-
-              <Text style={styles.pageSubtitle}>
-                Gerencie sua conta e os acessos ao sistema.
-              </Text>
+              <AppPageHeader
+                title="Usuários"
+                subtitle="Gerencie sua conta e os acessos ao sistema."
+                style={styles.pageHeader}
+              />
 
               {/* Resumo compacto da conta autenticada */}
               <View style={styles.profileCard}>
@@ -238,7 +239,7 @@ export default function UserListScreen() {
                       <MaterialIcons
                         name="person"
                         size={25}
-                        color="#171717"
+                        color={colors.text.primary}
                       />
                     )}
                   </View>
@@ -269,41 +270,24 @@ export default function UserListScreen() {
                 ) : null}
 
                 <View style={styles.profileActions}>
-                  <Pressable
-                    accessibilityRole="button"
+                  <AppButton
+                    label="Acessar meu perfil"
+                    variant="primary"
+                    size="sm"
                     disabled={!currentUser}
-                    onPress={() => router.push('/perfil' as never)}
-                    style={[
-                      styles.profileButton,
-                      !currentUser && styles.disabledButton,
-                    ]}
-                  >
-                    <MaterialIcons
-                      name="person-outline"
-                      size={17}
-                      color="#171717"
-                    />
+                    icon={<MaterialIcons name="person-outline" size={17} color={colors.text.primary} />}
+                    style={styles.profileActionButton}
+                    onPress={() => router.push('/(tabs)/(main)/perfil' as never)}
+                  />
 
-                    <Text style={styles.profileButtonText}>
-                      Acessar meu Perfil
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    accessibilityRole="button"
+                  <AppButton
+                    label="Sair"
+                    variant="danger"
+                    size="sm"
+                    icon={<MaterialIcons name="logout" size={17} color={colors.status.danger} />}
+                    style={styles.signOutActionButton}
                     onPress={() => setIsSignOutDialogVisible(true)}
-                    style={styles.signOutButton}
-                  >
-                    <MaterialIcons
-                      name="logout"
-                      size={17}
-                      color="#B42318"
-                    />
-
-                    <Text style={styles.signOutButtonText}>
-                      Sair
-                    </Text>
-                  </Pressable>
+                  />
                 </View>
               </View>
 
@@ -410,7 +394,7 @@ export default function UserListScreen() {
                   <MaterialIcons
                     name="error-outline"
                     size={24}
-                    color="#B42318"
+                    color={colors.status.danger}
                   />
 
                   <Text style={styles.errorText}>{error}</Text>
@@ -456,21 +440,12 @@ export default function UserListScreen() {
           )}
           ListEmptyComponent={
             !isLoading && !error ? (
-              <View style={styles.emptyCard}>
-                <MaterialIcons
-                  name="person-search"
-                  size={34}
-                  color="#A3A6AD"
-                />
-
-                <Text style={styles.emptyTitle}>
-                  Nenhum usuário encontrado
-                </Text>
-
-                <Text style={styles.emptyDescription}>
-                  Experimente mudar a pesquisa ou os filtros.
-                </Text>
-              </View>
+              <AppEmptyState
+                title="Nenhum usuário encontrado"
+                description="Experimente mudar a pesquisa ou os filtros."
+                icon={<MaterialIcons name="person-search" size={28} color={colors.text.muted} />}
+                style={styles.emptyCard}
+              />
             ) : null
           }
         />
@@ -559,31 +534,10 @@ function UserCard({ user, onPress }: { user: CampusUser; onPress: () => void }) 
         </Text>
 
         <View style={styles.badgeRow}>
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleBadgeText}>
-              {roleLabel(user.role)}
-            </Text>
-          </View>
-
-          <View
-            style={[
-              styles.statusBadge,
-              user.is_active
-                ? styles.statusActive
-                : styles.statusInactive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.statusText,
-                user.is_active
-                  ? styles.statusActiveText
-                  : styles.statusInactiveText,
-              ]}
-            >
-              {user.is_active ? 'ATIVO' : 'INATIVO'}
-            </Text>
-          </View>
+          <AppBadge variant="neutral">{roleLabel(user.role)}</AppBadge>
+          <AppBadge variant={user.is_active ? 'success' : 'danger'}>
+            {user.is_active ? 'Ativo' : 'Inativo'}
+          </AppBadge>
         </View>
       </View>
       <MaterialIcons name="chevron-right" size={21} color="#9B9EA5" />
@@ -603,33 +557,32 @@ function roleLabel(role: CampusUser['role']) {
 
 const styles = StyleSheet.create({
   safeArea: {
+    ...appLayoutStyles.screen,
     flex: 1,
-    backgroundColor: '#F3F4F4',
   },
   keyboardContainer: {
     flex: 1,
   },
   listContent: {
+    ...appLayoutStyles.content,
     flexGrow: 1,
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 20,
     paddingBottom: 24,
   },
   pageTitle: {
-    color: '#171717',
+    color: colors.text.primary,
     fontSize: 26,
     fontWeight: '800',
   },
   pageSubtitle: {
-    color: '#777B83',
+    color: colors.text.muted,
     fontSize: 12,
     marginTop: 3,
   },
+  pageHeader: { marginBottom: 0 },
   profileCard: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E5E6E8',
-    borderRadius: 13,
-    borderWidth: 1,
+    ...appSurfaceStyles.card,
     marginTop: 15,
     padding: 13,
   },
@@ -642,7 +595,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FFCC00',
+    backgroundColor: colors.brand.primary,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -652,7 +605,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   profileInitials: {
-    color: '#171717',
+    color: colors.text.primary,
     fontSize: 13,
     fontWeight: '800',
   },
@@ -661,31 +614,34 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   profileName: {
-    color: '#202124',
+    color: colors.text.heading,
     fontSize: 13,
     fontWeight: '800',
   },
   profileEmail: {
-    color: '#777B83',
+    color: colors.text.muted,
     fontSize: 11,
   },
   profileRole: {
-    color: '#777B83',
+    color: colors.text.muted,
     fontSize: 9,
     fontWeight: '700',
     marginTop: 2,
   },
   profileActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginTop: 13,
   },
+  profileActionButton: { flex: 1 },
+  signOutActionButton: { flex: 1, minWidth: 0 },
   profileButton: {
     flex: 1,
     minHeight: 39,
     paddingHorizontal: 8,
     borderRadius: 9,
-    backgroundColor: '#FFCC00',
+    backgroundColor: colors.brand.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -695,7 +651,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   profileButtonText: {
-    color: '#171717',
+    color: colors.text.primary,
     fontSize: 11,
     fontWeight: '700',
   },
@@ -711,31 +667,27 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   signOutButtonText: {
-    color: '#B42318',
+    color: colors.status.danger,
     fontSize: 12,
     fontWeight: '700',
   },
   profileError: {
-    color: '#B42318',
+    color: colors.status.danger,
     fontSize: 11,
     marginTop: 8,
   },
   searchBox: {
-    minHeight: 45,
+    ...appSurfaceStyles.input,
+    minHeight: 48,
     marginTop: 17,
-    paddingHorizontal: 11,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E3E4E6',
-    borderWidth: 1,
-    borderRadius: 9,
   },
   searchInput: {
     flex: 1,
     paddingVertical: 9,
-    color: '#202124',
+    color: colors.text.heading,
     fontSize: 12,
   },
   filtersRow: {
@@ -748,15 +700,15 @@ const styles = StyleSheet.create({
     minHeight: 30,
     paddingHorizontal: 11,
     borderRadius: 17,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderWidth: 1,
     borderColor: '#E2E3E5',
     alignItems: 'center',
     justifyContent: 'center',
   },
   filterChipSelected: {
-    backgroundColor: '#FFCC00',
-    borderColor: '#FFCC00',
+    backgroundColor: colors.brand.primary,
+    borderColor: colors.brand.primary,
   },
   filterChipText: {
     color: '#555A61',
@@ -764,7 +716,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   filterChipTextSelected: {
-    color: '#171717',
+    color: colors.text.primary,
   },
   resultsRow: {
     marginTop: 18,
@@ -788,13 +740,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   userCard: {
+    ...appSurfaceStyles.card,
     minHeight: 78,
     paddingHorizontal: 11,
     paddingVertical: 11,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 11,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderWidth: 1,
     borderColor: '#E6E7E9',
     borderRadius: 11,
@@ -813,10 +766,10 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   studentAvatar: {
-    backgroundColor: '#FFCC00',
+    backgroundColor: colors.brand.primary,
   },
   userAvatarText: {
-    color: '#222222',
+    color: colors.text.primary,
     fontSize: 11,
     fontWeight: '800',
   },
@@ -825,12 +778,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   userName: {
-    color: '#202124',
+    color: colors.text.heading,
     fontSize: 13,
     fontWeight: '800',
   },
   userEmail: {
-    color: '#777B83',
+    color: colors.text.muted,
     fontSize: 10,
   },
   badgeRow: {
@@ -844,7 +797,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 6,
     paddingVertical: 3,
-    backgroundColor: '#F0F1F2',
+    backgroundColor: colors.surface.subtle,
   },
   roleBadgeText: {
     color: '#666B73',
@@ -857,20 +810,20 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   statusActive: {
-    backgroundColor: '#E4F5EB',
+    backgroundColor: colors.status.successSoft,
   },
   statusInactive: {
-    backgroundColor: '#FDE9E7',
+    backgroundColor: colors.status.dangerSoft,
   },
   statusText: {
     fontSize: 8,
     fontWeight: '800',
   },
   statusActiveText: {
-    color: '#21834A',
+    color: colors.status.success,
   },
   statusInactiveText: {
-    color: '#B42318',
+    color: colors.status.danger,
   },
   separator: {
     height: 7,
@@ -908,7 +861,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 18,
     paddingVertical: 25,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderRadius: 11,
   },
   emptyTitle: {
@@ -917,7 +870,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   emptyDescription: {
-    color: '#777B83',
+    color: colors.text.muted,
     fontSize: 11,
     lineHeight: 17,
     textAlign: 'center',

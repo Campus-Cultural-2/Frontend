@@ -10,13 +10,14 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
 import { DateType } from 'react-native-ui-datepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppText as Text, AppTextInput as TextInput } from '@/components/ui/app-text';
+import { appLayoutStyles, appSurfaceStyles } from '@/components/ui/app-ui';
+import { colors } from '@/src/view/theme/tokens';
 import { AppToast } from '@/components/ui/app-toast';
 import { isEmailNotVerifiedError, login, registerUser, UserRole } from '@/src/lib/api/campus';
 import { setPendingEmailVerification } from '@/src/lib/auth/pendingEmailVerification';
@@ -201,7 +202,7 @@ export default function RegisterScreen() {
 
       showToast({ message: 'Sua conta foi criada com sucesso.', type: 'success' });
       navigationTimerRef.current = setTimeout(() => {
-        router.replace('/(tabs)' as never);
+        router.replace('/(tabs)/(main)' as never);
       }, 700);
     } catch (error) {
       if (isEmailNotVerifiedError(error)) {
@@ -231,13 +232,13 @@ export default function RegisterScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           showsVerticalScrollIndicator={false}>
-          <Animatable.View animation="fadeInLeft" duration={360} useNativeDriver>
+          <Animatable.View animation="fadeInLeft" duration={360} useNativeDriver={Platform.OS !== 'web'}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Voltar"
               onPress={() => (router.canGoBack() ? router.back() : router.replace('/login' as never))}
               style={styles.backButton}>
-              <MaterialIcons name="arrow-back" size={22} color="#FFCC00" />
+              <MaterialIcons name="arrow-back" size={22} color={colors.brand.primary} />
               <Text style={styles.backText}>Voltar</Text>
             </Pressable>
           </Animatable.View>
@@ -247,7 +248,7 @@ export default function RegisterScreen() {
             delay={80}
             duration={360}
             style={styles.roleSelector}
-            useNativeDriver>
+            useNativeDriver={Platform.OS !== 'web'}>
             <RoleButton
               isActive={form.role === 'student'}
               label="Aluno"
@@ -271,7 +272,7 @@ export default function RegisterScreen() {
             delay={140}
             duration={420}
             style={styles.form}
-            useNativeDriver>
+            useNativeDriver={Platform.OS !== 'web'}>
             {isStudent ? (
               <FormInput
                 error={errors.fullName}
@@ -355,13 +356,13 @@ export default function RegisterScreen() {
             />
           </Animatable.View>
 
-          <Animatable.View animation="fadeInUp" delay={220} duration={420} useNativeDriver>
+          <Animatable.View animation="fadeInUp" delay={220} duration={420} useNativeDriver={Platform.OS !== 'web'}>
             <Pressable
               accessibilityRole="button"
               disabled={isSaving}
               onPress={handleRegister}
               style={[styles.submitButton, isSaving ? styles.submitButtonDisabled : null]}>
-              {isSaving ? <ActivityIndicator color="#111111" /> : null}
+              {isSaving ? <ActivityIndicator color={colors.text.primary} /> : null}
               <Text style={styles.submitButtonText}>Cadastrar</Text>
             </Pressable>
           </Animatable.View>
@@ -378,7 +379,7 @@ export default function RegisterScreen() {
             animation="zoomIn"
             duration={220}
             style={styles.datePopover}
-            useNativeDriver>
+            useNativeDriver={Platform.OS !== 'web'}>
             <View style={styles.popoverHeader}>
               <Text style={styles.popoverTitle}>Data de nascimento</Text>
               <Pressable
@@ -386,7 +387,7 @@ export default function RegisterScreen() {
                 accessibilityLabel="Fechar seletor"
                 onPress={() => setShowBirthPicker(false)}
                 hitSlop={10}>
-                <MaterialIcons name="close" size={22} color="#5F6670" />
+                <MaterialIcons name="close" size={22} color={colors.text.secondary} />
               </Pressable>
             </View>
             <CampusDatePicker
@@ -525,14 +526,12 @@ function hasOnlyLetters(value: string) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F8F8F8',
-  },
+  safeArea: { ...appLayoutStyles.screen },
   keyboardView: {
     flex: 1,
   },
   content: {
+    ...appLayoutStyles.authContent,
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 24,
@@ -551,7 +550,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   roleSelector: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderRadius: 7,
     flexDirection: 'row',
     gap: 8,
@@ -566,7 +565,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   roleButtonActive: {
-    backgroundColor: '#FFCC00',
+    backgroundColor: colors.brand.primary,
   },
   roleButtonText: {
     color: '#737373',
@@ -576,7 +575,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   roleButtonTextActive: {
-    color: '#111111',
+    color: colors.text.primary,
   },
   form: {
     gap: 3,
@@ -591,27 +590,22 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   inputCard: {
+    ...appSurfaceStyles.input,
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-    borderRadius: 10,
-    borderWidth: 1,
+    borderRadius: 12,
     flexDirection: 'row',
     gap: 16,
     minHeight: 56,
     paddingHorizontal: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.03,
-    shadowRadius: 18,
+    boxShadow: '0px 12px 18px rgba(0, 0, 0, 0.03)',
     elevation: 1,
   },
   inputError: {
-    borderColor: '#F04438',
+    borderColor: colors.status.dangerStrong,
   },
   inputFocused: {
-    backgroundColor: '#FFFBEA',
-    borderColor: '#FFCC00',
+    backgroundColor: colors.brand.soft,
+    borderColor: colors.brand.primary,
   },
   input: {
     color: '#1F2937',
@@ -629,7 +623,7 @@ const styles = StyleSheet.create({
     color: '#1F2937',
   },
   errorText: {
-    color: '#F04438',
+    color: colors.status.dangerStrong,
     fontSize: 11,
     minHeight: 18,
     paddingTop: 4,
@@ -639,17 +633,14 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     alignItems: 'center',
-    backgroundColor: '#FFCC00',
+    backgroundColor: colors.brand.primary,
     borderRadius: 3,
     flexDirection: 'row',
     gap: 10,
     height: 60,
     justifyContent: 'center',
     marginTop: 28,
-    shadowColor: '#C68F00',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.16,
-    shadowRadius: 18,
+    boxShadow: '0px 10px 18px rgba(198, 143, 0, 0.16)',
     elevation: 5,
   },
   submitButtonDisabled: {
@@ -669,7 +660,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   datePopover: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderRadius: 12,
     maxWidth: 430,
     padding: 16,
@@ -682,7 +673,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   popoverTitle: {
-    color: '#20242A',
+    color: colors.text.heading,
     fontSize: 17,
     fontWeight: '900',
   },
@@ -702,7 +693,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   popoverCancelText: {
-    color: '#5F6670',
+    color: colors.text.secondary,
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.8,
@@ -710,7 +701,7 @@ const styles = StyleSheet.create({
   },
   popoverConfirmButton: {
     alignItems: 'center',
-    backgroundColor: '#FFCC00',
+    backgroundColor: colors.brand.primary,
     borderRadius: 6,
     height: 42,
     justifyContent: 'center',
@@ -718,7 +709,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   popoverConfirmText: {
-    color: '#111111',
+    color: colors.text.primary,
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.8,

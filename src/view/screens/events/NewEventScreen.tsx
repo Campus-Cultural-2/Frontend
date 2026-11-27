@@ -12,15 +12,16 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
+import type { TextInput as NativeTextInputInstance } from 'react-native';
 import { DateType } from 'react-native-ui-datepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppText as Text, AppTextInput as TextInput } from '@/components/ui/app-text';
+import { AppFieldLabel, AppPageHeader, appLayoutStyles, appSurfaceStyles } from '@/components/ui/app-ui';
+import { colors } from '@/src/view/theme/tokens';
 import EventCreationWizard from '@/src/view/screens/events/EventCreationWizard';
-
 import { AppToast } from '@/components/ui/app-toast';
 import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 import {
@@ -123,7 +124,7 @@ export default function NewEventScreen() {
   const { eventId } = useLocalSearchParams<{ eventId?: string }>();
 
   if (!eventId) {
-    return <EventCreationWizard/>;
+    return <EventCreationWizard />;
   }
 
   return <ExistingEventEditorScreen />;
@@ -204,7 +205,7 @@ function ExistingEventEditorScreen() {
         if (!isMounted) return;
 
         if (session.payload.role !== 'professor') {
-          router.replace('/calendario' as never);
+          router.replace('/(tabs)/(main)/calendario' as never);
           return;
         }
 
@@ -218,7 +219,7 @@ function ExistingEventEditorScreen() {
             message: 'Não foi possível verificar suas permissões para gerenciar eventos.',
             type: 'error',
           });
-          router.replace('/calendario' as never);
+          router.replace('/(tabs)/(main)/calendario' as never);
         }
       } finally {
         if (isMounted) setIsCheckingPermission(false);
@@ -361,10 +362,6 @@ function ExistingEventEditorScreen() {
     setMinimumSelectableDate(now);
     setDraftDate(selectedDate && !isDateInPast(selectedDate) ? selectedDate : now);
     setIsDatePopoverVisible(true);
-  }
-
-  function openTimePicker() {
-    openDatePicker();
   }
 
   function openEndDatePicker() {
@@ -644,7 +641,7 @@ function ExistingEventEditorScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.permissionLoading}>
-          <ActivityIndicator size="large" color="#FFCC00" />
+          <ActivityIndicator size="large" color={colors.brand.primary} />
           <Text style={styles.loadingEventText}>Verificando permissões...</Text>
         </View>
       </SafeAreaView>
@@ -661,31 +658,37 @@ function ExistingEventEditorScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           showsVerticalScrollIndicator={false}>
-          <Animatable.View animation="fadeInLeft" duration={360} useNativeDriver>
+          <Animatable.View animation="fadeInLeft" duration={360} useNativeDriver={Platform.OS !== 'web'}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Voltar"
               onPress={() =>
-                requestLeave(() => (router.canGoBack() ? router.back() : router.replace('/')))
+                requestLeave(() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/(main)/calendario' as never)))
               }
               style={styles.backButton}>
-              <MaterialIcons name="arrow-back" size={20} color="#FFCC00" />
+              <MaterialIcons name="arrow-back" size={20} color={colors.brand.primary} />
               <Text style={styles.backText}>Voltar</Text>
             </Pressable>
           </Animatable.View>
+
+          <AppPageHeader
+            title="Editar evento"
+            subtitle="Atualize as informações e as regras de participação."
+            style={styles.editorPageHeader}
+          />
 
           {isLoadingEvent ? (
             <Animatable.View
               animation="pulse"
               iterationCount="infinite"
               style={styles.loadingEventBox}
-              useNativeDriver>
-              <ActivityIndicator color="#111111" />
+              useNativeDriver={Platform.OS !== 'web'}>
+              <ActivityIndicator color={colors.text.primary} />
               <Text style={styles.loadingEventText}>Carregando evento...</Text>
             </Animatable.View>
           ) : null}
 
-          <Animatable.View animation="fadeInUp" delay={80} duration={420} useNativeDriver>
+          <Animatable.View animation="fadeInUp" delay={80} duration={420} useNativeDriver={Platform.OS !== 'web'}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Selecionar imagem do evento"
@@ -717,7 +720,7 @@ function ExistingEventEditorScreen() {
                 disabled={isSaving}
                 onPress={removeImage}
                 style={styles.removeImageButton}>
-                <MaterialIcons name="delete-outline" size={15} color="#B42318" />
+                <MaterialIcons name="delete-outline" size={15} color={colors.status.danger} />
                 <Text style={styles.removeImageText}>Remover imagem</Text>
               </Pressable>
             </View>
@@ -728,10 +731,10 @@ function ExistingEventEditorScreen() {
             delay={140}
             duration={420}
             style={styles.form}
-            useNativeDriver>
+            useNativeDriver={Platform.OS !== 'web'}>
             <LabeledInput
               error={errors.name}
-              label="Nome do Evento"
+              label="Nome do evento"
               onChangeText={(value) => updateField('name', value)}
               placeholder="Ex: Workshop de Produto Digital"
               value={form.name}
@@ -741,7 +744,7 @@ function ExistingEventEditorScreen() {
               active={isDatePopoverVisible}
               editable={false}
               error={errors.dateTime}
-              label="Data e Horário"
+              label="Início do evento"
               onPress={openDatePicker}
               onPressIcon={openDatePicker}
               onChangeText={(value) => updateField('dateTime', value)}
@@ -750,30 +753,11 @@ function ExistingEventEditorScreen() {
               value={form.dateTime}
             />
 
-            <View style={styles.dateTimeActions}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Selecionar data do evento"
-                onPress={openDatePicker}
-                style={styles.dateTimeButton}>
-                <MaterialIcons name="event" size={16} color="#111111" />
-                <Text style={styles.dateTimeButtonText}>Data</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Selecionar horário do evento"
-                onPress={openTimePicker}
-                style={styles.dateTimeButton}>
-                <MaterialIcons name="schedule" size={16} color="#111111" />
-                <Text style={styles.dateTimeButtonText}>Horário</Text>
-              </Pressable>
-            </View>
-
             <LabeledInput
               active={isDatePopoverVisible && pickerTarget === 'end'}
               editable={false}
               error={errors.endDateTime}
-              label="Encerramento"
+              label="Encerramento do evento"
               onPress={openEndDatePicker}
               onPressIcon={openEndDatePicker}
               onChangeText={(value) => updateField('endDateTime', value)}
@@ -786,7 +770,7 @@ function ExistingEventEditorScreen() {
               <View style={styles.labelRow}>
                 <Text style={styles.label}>Confirmação de presença</Text>
               </View>
-              <View style={styles.attendanceOptions}>
+              <View accessibilityRole="radiogroup" accessibilityLabel="Confirmação de presença" style={styles.attendanceOptions}>
                 {attendanceOptions.map((option) => {
                   const selected = option.value === attendanceMode;
 
@@ -797,8 +781,15 @@ function ExistingEventEditorScreen() {
                       key={option.value}
                       onPress={() => setAttendanceMode(option.value)}
                       style={[styles.attendanceOption, selected ? styles.attendanceOptionSelected : null]}>
-                      <Text style={styles.attendanceOptionLabel}>{option.label}</Text>
-                      <Text style={styles.attendanceOptionDescription}>{option.description}</Text>
+                      <View style={styles.attendanceOptionCopy}>
+                        <Text style={styles.attendanceOptionLabel}>{option.label}</Text>
+                        <Text style={styles.attendanceOptionDescription}>{option.description}</Text>
+                      </View>
+                      <MaterialIcons
+                        name={selected ? 'radio-button-checked' : 'radio-button-unchecked'}
+                        size={20}
+                        color={selected ? colors.brand.emphasis : colors.text.muted}
+                      />
                     </Pressable>
                   );
                 })}
@@ -812,7 +803,10 @@ function ExistingEventEditorScreen() {
                   Defina se este evento oferecerá certificado aos participantes.
                 </Text>
               </View>
-              <View style={styles.certificateToggleOptions}>
+              <View
+                accessibilityRole="radiogroup"
+                accessibilityLabel="Disponibilidade de certificado"
+                style={styles.certificateToggleOptions}>
                 <Pressable
                   accessibilityRole="radio"
                   accessibilityState={{ selected: hasCertificate }}
@@ -933,16 +927,16 @@ function ExistingEventEditorScreen() {
             delay={220}
             duration={420}
             style={styles.actions}
-            useNativeDriver>
+            useNativeDriver={Platform.OS !== 'web'}>
             <Pressable
               accessibilityRole="button"
               disabled={isSaving || isLoadingEvent}
               onPress={saveEvent}
               style={[styles.saveButton, isSaving || isLoadingEvent ? styles.saveButtonDisabled : null]}>
               {isSaving ? (
-                <ActivityIndicator color="#111111" />
+                <ActivityIndicator color={colors.text.primary} />
               ) : (
-                <MaterialIcons name="event-available" size={18} color="#111111" />
+                <MaterialIcons name="event-available" size={18} color={colors.text.primary} />
               )}
               <Text style={styles.saveButtonText}>
                 {isEditing ? 'Atualizar Evento' : 'Salvar Evento'}
@@ -972,7 +966,7 @@ function ExistingEventEditorScreen() {
                 disabled={isSaving || isLoadingEvent}
                 onPress={() => setIsDeleteDialogVisible(true)}
                 style={[styles.deleteButton, isSaving || isLoadingEvent ? styles.discardButtonDisabled : null]}>
-                <MaterialIcons name="delete-outline" size={16} color="#B42318" />
+                <MaterialIcons name="delete-outline" size={16} color={colors.status.danger} />
                 <Text style={styles.deleteText}>Excluir Evento</Text>
               </Pressable>
             ) : null}
@@ -990,7 +984,7 @@ function ExistingEventEditorScreen() {
             animation="zoomIn"
             duration={220}
             style={styles.datePopover}
-            useNativeDriver>
+            useNativeDriver={Platform.OS !== 'web'}>
             <View style={styles.popoverHeader}>
               <Text style={styles.popoverTitle}>
                 {pickerTarget === 'end' ? 'Encerramento' : 'Data e horário'}
@@ -1000,7 +994,7 @@ function ExistingEventEditorScreen() {
                 accessibilityLabel="Fechar seletor"
                 onPress={() => setIsDatePopoverVisible(false)}
                 hitSlop={10}>
-                <MaterialIcons name="close" size={22} color="#5F6670" />
+                <MaterialIcons name="close" size={22} color={colors.text.secondary} />
               </Pressable>
             </View>
             <CampusDatePicker
@@ -1078,15 +1072,12 @@ function LabeledInput({
   value,
 }: LabeledInputProps) {
   const [isFocused, setIsFocused] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<NativeTextInputInstance>(null);
   const isActive = active || isFocused;
 
   return (
     <View>
-      <View style={styles.labelRow}>
-        <Text style={styles.label}>{label}</Text>
-        <Text style={styles.required}>*</Text>
-      </View>
+      <AppFieldLabel label={label} required style={styles.sharedFieldLabel} />
       <Pressable
         onPress={onPress ?? (() => inputRef.current?.focus())}
         style={[
@@ -1102,8 +1093,7 @@ function LabeledInput({
           onFocus={() => setIsFocused(true)}
           placeholder={placeholder}
           placeholderTextColor="#C7C9CE"
-          pointerEvents={editable ? 'auto' : 'none'}
-          style={styles.textInput}
+          style={[styles.textInput, { pointerEvents: editable ? 'auto' : 'none' }]}
           value={value}
         />
         {rightIcon ? (
@@ -1182,16 +1172,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   safeArea: {
+    ...appLayoutStyles.screen,
     flex: 1,
-    backgroundColor: '#FAFAFA',
   },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
+    ...appLayoutStyles.content,
     flexGrow: 1,
-    paddingHorizontal: 18,
-    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingTop: 20,
     paddingBottom: 32,
   },
   backButton: {
@@ -1237,7 +1228,7 @@ const styles = StyleSheet.create({
   },
   uploadButton: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderRadius: 18,
     height: 28,
     justifyContent: 'center',
@@ -1275,7 +1266,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   removeImageText: {
-    color: '#B42318',
+    color: colors.status.danger,
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 0.8,
@@ -1283,7 +1274,7 @@ const styles = StyleSheet.create({
   },
   loadingEventBox: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderRadius: 8,
     flexDirection: 'row',
     gap: 10,
@@ -1292,7 +1283,7 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   loadingEventText: {
-    color: '#5F6670',
+    color: colors.text.secondary,
     fontSize: 12,
     fontWeight: '800',
   },
@@ -1304,7 +1295,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   datePopover: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderRadius: 12,
     maxWidth: 430,
     padding: 16,
@@ -1317,7 +1308,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   popoverTitle: {
-    color: '#20242A',
+    color: colors.text.heading,
     fontSize: 17,
     fontWeight: '900',
   },
@@ -1337,7 +1328,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   popoverCancelText: {
-    color: '#5F6670',
+    color: colors.text.secondary,
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.8,
@@ -1345,7 +1336,7 @@ const styles = StyleSheet.create({
   },
   popoverConfirmButton: {
     alignItems: 'center',
-    backgroundColor: '#FFCC00',
+    backgroundColor: colors.brand.primary,
     borderRadius: 6,
     height: 42,
     justifyContent: 'center',
@@ -1353,21 +1344,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   popoverConfirmText: {
-    color: '#111111',
+    color: colors.text.primary,
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
+  editorPageHeader: { marginTop: 4, marginBottom: 14 },
   form: {
     gap: 8,
     marginTop: 16,
+  },
+  labelRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 4,
+    marginBottom: 8,
   },
   attendanceOptions: {
     gap: 8,
   },
   certificateSettings: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderColor: '#E0E2E5',
     borderRadius: 8,
     borderWidth: 1,
@@ -1376,12 +1374,12 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   certificateSectionTitle: {
-    color: '#24282D',
+    color: colors.text.heading,
     fontSize: 14,
     fontWeight: '800',
   },
   certificateSectionDescription: {
-    color: '#6F7782',
+    color: colors.text.secondary,
     fontSize: 11,
     lineHeight: 16,
     marginTop: 4,
@@ -1392,7 +1390,7 @@ const styles = StyleSheet.create({
   },
   certificateToggleOption: {
     alignItems: 'center',
-    backgroundColor: '#F3F3F4',
+    backgroundColor: colors.surface.subtle,
     borderColor: 'transparent',
     borderRadius: 6,
     borderWidth: 1.5,
@@ -1407,7 +1405,7 @@ const styles = StyleSheet.create({
     borderColor: '#D7A900',
   },
   certificateToggleLabel: {
-    color: '#5F6670',
+    color: colors.text.secondary,
     fontSize: 11,
     fontWeight: '700',
     textAlign: 'center',
@@ -1422,29 +1420,27 @@ const styles = StyleSheet.create({
     marginBottom: 7,
   },
   certificateWorkloadInput: {
+    ...appSurfaceStyles.input,
     alignItems: 'center',
-    borderColor: '#E2E5E7',
-    borderRadius: 8,
-    borderWidth: 1,
     flexDirection: 'row',
     minHeight: 44,
     paddingHorizontal: 12,
   },
   certificateWorkloadTextInput: {
-    color: '#343A40',
+    color: colors.text.heading,
     flex: 1,
     fontSize: 13,
     height: 44,
   },
   certificateWorkloadSuffix: {
-    color: '#7B838C',
+    color: colors.text.muted,
     fontSize: 11,
   },
   certificateGroupOptions: {
     gap: 7,
   },
   certificateGroupOption: {
-    borderColor: '#E1E3E5',
+    borderColor: colors.border.default,
     borderRadius: 7,
     borderWidth: 1,
     paddingHorizontal: 11,
@@ -1460,10 +1456,10 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   certificateGroupLabelSelected: {
-    color: '#171717',
+    color: colors.text.primary,
   },
   certificateGroupDescription: {
-    color: '#89919A',
+    color: colors.text.muted,
     fontSize: 10,
     lineHeight: 14,
     marginTop: 3,
@@ -1477,55 +1473,32 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   attendanceOption: {
-    backgroundColor: '#F3F3F4',
-    borderColor: 'transparent',
-    borderRadius: 6,
-    borderWidth: 1.5,
-    gap: 2,
+    alignItems: 'center',
+    backgroundColor: colors.surface.subtle,
+    borderColor: colors.border.default,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 12,
     padding: 12,
   },
   attendanceOptionSelected: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#111111',
+    backgroundColor: colors.brand.soft,
+    borderColor: colors.brand.primary,
+    borderWidth: 1.5,
   },
+  attendanceOptionCopy: { flex: 1, gap: 3 },
   attendanceOptionLabel: {
-    color: '#111111',
-    fontSize: 14,
+    color: colors.text.heading,
+    fontSize: 13,
     fontWeight: '600',
   },
   attendanceOptionDescription: {
-    color: '#5F6670',
-    fontSize: 12,
-  },
-  dateTimeActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: -4,
-    marginBottom: 8,
-  },
-  dateTimeButton: {
-    alignItems: 'center',
-    backgroundColor: '#F3F3F4',
-    borderRadius: 6,
-    flexDirection: 'row',
-    gap: 7,
-    height: 36,
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-  },
-  dateTimeButtonText: {
-    color: '#111111',
+    color: colors.text.secondary,
     fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
+    lineHeight: 16,
   },
-  labelRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 4,
-    marginBottom: 8,
-  },
+  sharedFieldLabel: { marginBottom: 8 },
   label: {
     color: '#2B2B2B',
     fontSize: 10,
@@ -1534,23 +1507,22 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   required: {
-    color: '#F04438',
+    color: colors.status.dangerStrong,
     fontSize: 11,
     fontWeight: '900',
   },
   inputShell: {
+    ...appSurfaceStyles.input,
     alignItems: 'center',
-    borderBottomColor: '#DADDE2',
-    borderBottomWidth: 1,
     flexDirection: 'row',
-    minHeight: 44,
+    minHeight: 48,
   },
   inputFocused: {
-    backgroundColor: '#FFFBEA',
-    borderBottomColor: '#FFCC00',
+    backgroundColor: colors.brand.soft,
+    borderColor: colors.brand.primary,
   },
   textInput: {
-    color: '#202020',
+    color: colors.text.primary,
     flex: 1,
     fontSize: 16,
     minHeight: 44,
@@ -1558,11 +1530,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   descriptionInput: {
-    backgroundColor: '#F3F3F4',
-    borderColor: '#F3F3F4',
-    borderRadius: 2,
-    borderWidth: 1,
-    color: '#202020',
+    ...appSurfaceStyles.input,
+    backgroundColor: colors.surface.card,
+    borderRadius: 12,
+    color: colors.text.primary,
     fontSize: 14,
     lineHeight: 20,
     minHeight: 146,
@@ -1576,11 +1547,11 @@ const styles = StyleSheet.create({
     minHeight: 22,
   },
   inputError: {
-    borderColor: '#F04438',
-    borderBottomColor: '#F04438',
+    borderColor: colors.status.dangerStrong,
+    borderBottomColor: colors.status.dangerStrong,
   },
   errorText: {
-    color: '#F04438',
+    color: colors.status.dangerStrong,
     fontSize: 11,
     marginTop: 4,
   },
@@ -1593,11 +1564,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   counterLimit: {
-    color: '#F04438',
+    color: colors.status.dangerStrong,
     fontWeight: '700',
   },
   limitWarning: {
-    color: '#F04438',
+    color: colors.status.dangerStrong,
     fontSize: 12,
     marginTop: 2,
   },
@@ -1607,23 +1578,20 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     alignItems: 'center',
-    backgroundColor: '#FFCC00',
+    backgroundColor: colors.brand.primary,
     borderRadius: 7,
     flexDirection: 'row',
     gap: 12,
     height: 64,
     justifyContent: 'center',
-    shadowColor: '#C68F00',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
+    boxShadow: '0px 8px 14px rgba(198, 143, 0, 0.18)',
     elevation: 8,
   },
   saveButtonDisabled: {
     opacity: 0.7,
   },
   saveButtonText: {
-    color: '#111111',
+    color: colors.text.primary,
     fontSize: 14,
     fontWeight: '900',
     letterSpacing: 4,
@@ -1631,7 +1599,7 @@ const styles = StyleSheet.create({
   },
   discardButton: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     height: 34,
     justifyContent: 'center',
   },
@@ -1658,7 +1626,7 @@ const styles = StyleSheet.create({
     color: '#B8BCC3',
   },
   deleteText: {
-    color: '#B42318',
+    color: colors.status.danger,
     fontSize: 11,
     fontWeight: '900',
     letterSpacing: 1,

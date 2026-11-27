@@ -1,6 +1,12 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Animatable from 'react-native-animatable';
-import { StyleSheet, Text } from 'react-native';
+import {
+  Platform,
+  StyleSheet,
+} from 'react-native';
+
+import { AppText as Text } from '@/components/ui/app-text';
+import { colors } from '@/src/view/theme/tokens';
 
 export type AppToastType = 'error' | 'success' | 'warning';
 
@@ -26,10 +32,9 @@ export function AppToast({ bottom = 112, message, type = 'success', visible }: A
     <Animatable.View
       animation="fadeInUp"
       duration={240}
-      pointerEvents="none"
-      style={[styles.toast, styles[type], { bottom }]}
-      useNativeDriver>
-      <MaterialIcons name={iconByType[type]} size={18} color="#111111" />
+      style={[styles.toast, styles[type], { bottom, pointerEvents: 'none' }]}
+      useNativeDriver={Platform.OS !== 'web'}>
+      <MaterialIcons name={iconByType[type]} size={18} color={colors.text.primary} />
       <Text style={styles.text}>{message}</Text>
     </Animatable.View>
   );
@@ -46,23 +51,20 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 18,
     position: 'absolute',
-    shadowColor: '#111111',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.14,
-    shadowRadius: 16,
+    boxShadow: '0px 8px 16px rgba(17, 17, 17, 0.14)',
     elevation: 6,
   },
   success: {
-    backgroundColor: '#FFCC00',
+    backgroundColor: colors.brand.primary,
   },
   warning: {
-    backgroundColor: '#FFE8A3',
+    backgroundColor: colors.status.warningSoft,
   },
   error: {
-    backgroundColor: '#FECACA',
+    backgroundColor: colors.status.dangerSoft,
   },
   text: {
-    color: '#111111',
+    color: colors.text.primary,
     flexShrink: 1,
     fontSize: 12,
     fontWeight: '900',

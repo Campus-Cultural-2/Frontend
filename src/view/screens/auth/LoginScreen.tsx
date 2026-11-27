@@ -3,19 +3,19 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import * as Animatable from 'react-native-animatable';
 import {
-  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppText as Text, AppTextInput as TextInput } from '@/components/ui/app-text';
+import { AppButton, AppFieldLabel, appLayoutStyles, appSurfaceStyles } from '@/components/ui/app-ui';
+import { colors } from '@/src/view/theme/tokens';
 import { AppToast } from '@/components/ui/app-toast';
 import {
   hasAuthToken,
@@ -44,7 +44,7 @@ export default function LoginScreen() {
   useEffect(() => {
     async function redirectAuthenticatedUser() {
       if (await hasAuthToken()) {
-        router.replace('/(tabs)' as never);
+        router.replace('/(tabs)/(main)' as never);
       }
     }
 
@@ -72,7 +72,7 @@ export default function LoginScreen() {
 
     try {
       await login({ email: normalizedEmail, password });
-      router.replace('/(tabs)' as never);
+      router.replace('/(tabs)/(main)' as never);
     } catch (error) {
       if (isEmailNotVerifiedError(error)) {
         // Senha certa, e-mail ainda nao confirmado. Pede um codigo novo, ja
@@ -106,7 +106,7 @@ export default function LoginScreen() {
             animation="zoomIn"
             duration={460}
             style={styles.logoBlock}
-            useNativeDriver>
+            useNativeDriver={Platform.OS !== 'web'}>
             <Image source={logoUtf} resizeMode="contain" style={styles.logoImage} />
             <Text style={styles.brand}>UTFPR CULTURAL</Text>
             <Text style={styles.subtitle}>ACESSO INSTITUCIONAL</Text>
@@ -117,9 +117,9 @@ export default function LoginScreen() {
             delay={140}
             duration={460}
             style={styles.card}
-            useNativeDriver>
+            useNativeDriver={Platform.OS !== 'web'}>
             <View>
-              <Text style={styles.label}>Email *</Text>
+              <AppFieldLabel label="E-mail" required style={styles.sharedFieldLabel} />
               <View style={[styles.inputLine, focusedField === 'email' ? styles.inputLineFocused : null]}>
                 <TextInput
                   autoCapitalize="none"
@@ -138,7 +138,7 @@ export default function LoginScreen() {
             </View>
 
             <View>
-              <Text style={styles.label}>Senha *</Text>
+              <AppFieldLabel label="Senha" required style={styles.sharedFieldLabel} />
               <View style={[styles.inputLine, focusedField === 'password' ? styles.inputLineFocused : null]}>
                 <TextInput
                   autoCapitalize="none"
@@ -199,15 +199,17 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            <Animatable.View animation="fadeIn" delay={300} useNativeDriver>
-              <Pressable
-                accessibilityRole="button"
+            <Animatable.View animation="fadeIn" delay={300} useNativeDriver={Platform.OS !== 'web'}>
+              <AppButton
+                label="Entrar"
+                variant="primary"
+                size="lg"
+                fullWidth
+                loading={isLoading}
                 disabled={isLoading}
                 onPress={handleLogin}
-                style={[styles.loginButton, isLoading ? styles.loginButtonDisabled : null]}>
-                {isLoading ? <ActivityIndicator color="#111111" /> : null}
-                <Text style={styles.loginButtonText}>Entrar</Text>
-              </Pressable>
+                style={styles.loginAction}
+              />
             </Animatable.View>
 
             <View style={styles.cardActions}>
@@ -227,14 +229,12 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
+  safeArea: { ...appLayoutStyles.screen },
   container: {
     flex: 1,
   },
   content: {
+    ...appLayoutStyles.authContent,
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 32,
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
     width: 260,
   },
   brand: {
-    color: '#202020',
+    color: colors.text.primary,
     fontSize: 21,
     fontWeight: '900',
     marginTop: 28,
@@ -262,38 +262,26 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#F0F0F0',
-    borderRadius: 8,
-    borderWidth: 1,
+    ...appSurfaceStyles.card,
+    borderRadius: 16,
     gap: 28,
     paddingHorizontal: 30,
     paddingVertical: 32,
-    shadowColor: '#111111',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.03,
-    shadowRadius: 18,
+    boxShadow: '0px 8px 18px rgba(17, 17, 17, 0.03)',
     elevation: 2,
   },
-  label: {
-    color: '#222222',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1.4,
-    marginBottom: 14,
-    textTransform: 'uppercase',
-  },
+  sharedFieldLabel: { marginBottom: 14 },
   inputLine: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderBottomColor: '#E3E3E3',
     borderBottomWidth: 2,
     flexDirection: 'row',
     height: 42,
   },
   inputLineFocused: {
-    backgroundColor: '#FFFBEA',
-    borderBottomColor: '#FFCC00',
+    backgroundColor: colors.brand.soft,
+    borderBottomColor: colors.brand.primary,
   },
   passwordVisibilityButton: {
     alignItems: 'center',
@@ -302,31 +290,13 @@ const styles = StyleSheet.create({
     width: 36,
   },
   input: {
-    color: '#222222',
+    color: colors.text.primary,
     flex: 1,
     fontSize: 15,
     height: '100%',
     paddingHorizontal: 0,
   },
-  loginButton: {
-    alignItems: 'center',
-    backgroundColor: '#FFCC00',
-    borderRadius: 3,
-    flexDirection: 'row',
-    gap: 10,
-    height: 58,
-    justifyContent: 'center',
-    marginTop: 10,
-  },
-  loginButtonDisabled: {
-    opacity: 0.7,
-  },
-  loginButtonText: {
-    color: '#111111',
-    fontSize: 15,
-    fontWeight: '900',
-    textTransform: 'uppercase',
-  },
+  loginAction: { marginTop: 10 },
   cardActions: {
     alignItems: 'center',
     flexDirection: 'row',
