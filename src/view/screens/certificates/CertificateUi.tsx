@@ -1,15 +1,24 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useRouter } from 'expo-router';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native';
+
+import { AppText as Text } from '@/components/ui/app-text';
+import { AppBadge, AppButton, AppPageHeader, appSurfaceStyles } from '@/components/ui/app-ui';
+import { colors } from '@/src/view/theme/tokens';
 
 export const CERTIFICATE_COLORS = {
-  background: '#F7F7F8',
-  border: '#E7E8EA',
-  ink: '#202124',
+  background: colors.surface.page,
+  border: colors.border.default,
+  ink: colors.text.heading,
   muted: '#717780',
-  primary: '#FFCC00',
+  primary: colors.brand.primary,
   softYellow: '#FFF5C7',
-  white: '#FFFFFF',
+  white: colors.neutral.white,
 } as const;
 
 export type NoticeTone = 'info' | 'warning' | 'success' | 'error';
@@ -23,24 +32,26 @@ export function CertificateScreenHeading({
   subtitle: string;
   onBack?: () => void;
 }) {
-  return (
-    <View style={styles.heading}>
-      {onBack ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Voltar"
-          hitSlop={10}
-          onPress={onBack}
-          style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={20} color={CERTIFICATE_COLORS.ink} />
-        </Pressable>
-      ) : null}
-      <View style={styles.headingCopy}>
-        <Text style={styles.headingTitle}>{title}</Text>
-        <Text style={styles.headingSubtitle}>{subtitle}</Text>
-      </View>
-    </View>
-  );
+  const router = useRouter();
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      onBack?.();
+    } else {
+      router.replace('/(tabs)/(main)/certificados' as never);
+    }
+  };
+  const leading = onBack ? (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Voltar"
+      hitSlop={10}
+      onPress={handleBack}
+      style={appSurfaceStyles.iconButton}>
+      <MaterialIcons name="arrow-back" size={20} color={CERTIFICATE_COLORS.ink} />
+    </Pressable>
+  ) : undefined;
+
+  return <AppPageHeader title={title} subtitle={subtitle} leading={leading} />;
 }
 
 export function CertificateInfoBanner({
@@ -68,7 +79,7 @@ export function CertificateInfoBanner({
     info: '#315E87',
     warning: '#9A6A10',
     success: '#278052',
-    error: '#B42318',
+    error: colors.status.danger,
   };
 
   return (
@@ -89,26 +100,15 @@ export function CertificateStatusPill({
   label: string;
   tone?: NoticeTone | 'neutral';
 }) {
-  const backgroundByTone: Record<NoticeTone | 'neutral', string> = {
-    info: '#E4EFF9',
-    warning: '#FFF0CE',
-    success: '#E4F4EA',
-    error: '#FCE8E8',
-    neutral: '#ECEEF0',
-  };
-  const textColorByTone: Record<NoticeTone | 'neutral', string> = {
-    info: '#315E87',
-    warning: '#95610A',
-    success: '#23784B',
-    error: '#A42B2B',
-    neutral: '#626A73',
+  const variantByTone: Record<NoticeTone | 'neutral', 'info' | 'warning' | 'success' | 'danger' | 'neutral'> = {
+    info: 'info',
+    warning: 'warning',
+    success: 'success',
+    error: 'danger',
+    neutral: 'neutral',
   };
 
-  return (
-    <View style={[styles.statusPill, { backgroundColor: backgroundByTone[tone] }]}>
-      <Text style={[styles.statusText, { color: textColorByTone[tone] }]}>{label}</Text>
-    </View>
-  );
+  return <AppBadge variant={variantByTone[tone]}>{label}</AppBadge>;
 }
 
 export function CertificatePrimaryButton({
@@ -123,19 +123,14 @@ export function CertificatePrimaryButton({
   icon?: keyof typeof MaterialIcons.glyphMap;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
+    <AppButton
+      label={label}
+      variant="primary"
+      size="lg"
       disabled={disabled}
+      icon={<MaterialIcons name={icon} size={18} color={colors.text.primary} />}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.primaryButton,
-        disabled && styles.buttonDisabled,
-        pressed && !disabled && styles.buttonPressed,
-      ]}>
-      <MaterialIcons name={icon} size={18} color="#111111" />
-      <Text style={styles.primaryButtonText}>{label}</Text>
-    </Pressable>
+    />
   );
 }
 
@@ -151,19 +146,14 @@ export function CertificateSecondaryButton({
   icon?: keyof typeof MaterialIcons.glyphMap;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
+    <AppButton
+      label={label}
+      variant="outline"
+      size="md"
       disabled={disabled}
+      icon={icon ? <MaterialIcons name={icon} size={17} color={colors.text.heading} /> : undefined}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.secondaryButton,
-        disabled && styles.buttonDisabled,
-        pressed && !disabled && styles.buttonPressed,
-      ]}>
-      {icon ? <MaterialIcons name={icon} size={17} color="#30343A" /> : null}
-      <Text style={styles.secondaryButtonText}>{label}</Text>
-    </Pressable>
+    />
   );
 }
 
@@ -207,37 +197,6 @@ export function formatSubscriptionDate(value: string) {
 }
 
 const styles = StyleSheet.create({
-  heading: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 18,
-  },
-  backButton: {
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: CERTIFICATE_COLORS.border,
-    borderRadius: 20,
-    borderWidth: 1,
-    height: 38,
-    justifyContent: 'center',
-    width: 38,
-  },
-  headingCopy: {
-    flex: 1,
-  },
-  headingTitle: {
-    color: CERTIFICATE_COLORS.ink,
-    fontSize: 23,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-  },
-  headingSubtitle: {
-    color: CERTIFICATE_COLORS.muted,
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 4,
-  },
   banner: {
     alignItems: 'flex-start',
     borderRadius: 10,
@@ -258,54 +217,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 17,
   },
-  statusPill: {
-    alignSelf: 'flex-start',
-    borderRadius: 20,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-  },
-  statusText: {
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
-  },
-  primaryButton: {
-    alignItems: 'center',
-    backgroundColor: CERTIFICATE_COLORS.primary,
-    borderRadius: 9,
-    flexDirection: 'row',
-    gap: 8,
-    height: 48,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  primaryButtonText: {
-    color: '#111111',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  secondaryButton: {
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#C7C9CD',
-    borderRadius: 9,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 8,
-    height: 46,
-    justifyContent: 'center',
-    paddingHorizontal: 15,
-  },
-  secondaryButtonText: {
-    color: '#30343A',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  buttonDisabled: { opacity: 0.48 },
-  buttonPressed: { opacity: 0.82 },
   sectionTitleRow: {
     alignItems: 'center',
     flexDirection: 'row',

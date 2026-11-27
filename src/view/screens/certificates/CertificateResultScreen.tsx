@@ -1,13 +1,20 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppText as Text } from '@/components/ui/app-text';
+import { appLayoutStyles, appSurfaceStyles } from '@/components/ui/app-ui';
+import { colors } from '@/src/view/theme/tokens';
 import { getEvent, getValidAuthSession, isAuthSessionError } from '@/src/lib/api/campus';
 import type { CampusEvent } from '@/src/lib/api/schemas';
 import { clearAuthToken } from '@/src/lib/auth/token';
-
 import {
   CERTIFICATE_COLORS,
   CertificateInfoBanner,
@@ -37,7 +44,7 @@ export default function CertificateResultScreen() {
     try {
       const session = await getValidAuthSession();
       if (session.payload.role !== 'professor' && session.payload.role !== 'admin') {
-        router.replace('/(tabs)/certificados' as never);
+        router.replace('/(tabs)/(main)/certificados' as never);
         return;
       }
       // A tela de revisão utiliza a quantidade já retornada por GET /events.
@@ -157,21 +164,23 @@ function formatHoursGroup(value: CampusEvent['hours_group']) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { backgroundColor: CERTIFICATE_COLORS.background, flex: 1 },
+  safeArea: {
+    ...appLayoutStyles.screen, flex: 1 },
   loadingScreen: { alignItems: 'center', backgroundColor: CERTIFICATE_COLORS.background, flex: 1, justifyContent: 'center' },
-  content: { paddingBottom: 32, paddingHorizontal: 18, paddingTop: 15 },
+  content: {
+    ...appLayoutStyles.content, paddingBottom: 32 },
   statusCard: { alignItems: 'center', backgroundColor: '#EAF5EF', borderRadius: 12, marginBottom: 13, paddingHorizontal: 20, paddingVertical: 22 },
-  statusIcon: { alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 23, height: 46, justifyContent: 'center', marginBottom: 10, width: 46 },
+  statusIcon: { alignItems: 'center', backgroundColor: colors.neutral.white, borderRadius: 23, height: 46, justifyContent: 'center', marginBottom: 10, width: 46 },
   statusTitle: { color: '#24734F', fontSize: 17, fontWeight: '900', marginTop: 12, textAlign: 'center' },
   statusDescription: { color: '#4F7663', fontSize: 10, lineHeight: 16, marginTop: 6, textAlign: 'center' },
-  eventSummaryCard: { backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 10, borderWidth: 1, marginBottom: 12, padding: 13 },
+  eventSummaryCard: { ...appSurfaceStyles.card, marginBottom: 12, padding: 16 },
   eventSummaryTop: { alignItems: 'center', flexDirection: 'row', gap: 10, justifyContent: 'space-between' },
   eventName: { color: '#333940', flex: 1, fontSize: 12, fontWeight: '900' },
   eventSummaryBottom: { borderTopColor: '#ECEDEF', borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-between', marginTop: 11, paddingTop: 9 },
   summaryItem: { color: '#757D86', fontSize: 9 },
   metricsRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  metricCard: { alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 9, borderWidth: 1, flex: 1, paddingVertical: 12 },
-  metricValue: { color: '#30343A', fontSize: 18, fontWeight: '900' },
-  metricLabel: { color: '#7B838C', fontSize: 9, marginTop: 3 },
+  metricCard: { ...appSurfaceStyles.card, alignItems: 'center', flex: 1, paddingVertical: 14 },
+  metricValue: { color: colors.text.heading, fontSize: 18, fontWeight: '900' },
+  metricLabel: { color: colors.text.muted, fontSize: 9, marginTop: 3 },
   actions: { gap: 8, marginBottom: 12 },
 });

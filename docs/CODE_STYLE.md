@@ -29,6 +29,20 @@ Este guia define o padrao esperado para contribuicoes no frontend.
 - Use `accessibilityRole` e `accessibilityLabel` em botoes sem texto claro.
 - Evite textos gigantes dentro de botoes; use labels curtos.
 
+## Identidade visual
+
+- Use `AppText` e `AppTextInput` de `components/ui/app-text.tsx` em telas e componentes; evite importar `Text` ou `TextInput` diretamente de `react-native`.
+- A familia tipografica oficial e Inter. Os pesos carregados no layout raiz devem corresponder aos pesos utilizados nos estilos.
+- `AppText` normaliza os tamanhos legados para a escala tipografica compartilhada. Novos estilos devem usar os valores de `typography.size` e manter textos auxiliares legiveis; nao criar tamanhos arbitrarios abaixo de 11.
+- Cores, tipografia, espacamentos e raios compartilhados ficam em `src/view/theme/tokens.ts`; evite criar novas variacoes locais para a paleta institucional.
+- O tema atual e claro em Android, iOS e web. Use os tokens semanticos (`brand`, `text`, `surface`, `border` e `status`) para manter contraste e consistencia.
+- Use os componentes de `components/ui/app-ui.tsx` antes de criar componentes visuais equivalentes: `AppButton`, `AppCard`, `AppBadge`, `AppPageHeader`, `AppFieldLabel` e `AppEmptyState`.
+- Para botoes, escolha uma variante semantica de `AppButton` (`primary`, `secondary`, `outline`, `danger` ou `ghost`) e evite definir cores, altura e raio localmente.
+- Para superficies, use `AppCard` ou `appSurfaceStyles.card`; para campos use `appSurfaceStyles.input`; para acoes de icone use `appSurfaceStyles.iconButton`.
+- Telas autenticadas devem reutilizar `appLayoutStyles.screen` e `appLayoutStyles.content`, preservando a largura maxima compartilhada na web e os mesmos recuos laterais no mobile.
+- Cabecalhos de pagina devem usar `AppPageHeader`; rotulos de campos devem usar `AppFieldLabel`; estados vazios devem usar `AppEmptyState`.
+- Variacoes locais sao aceitaveis apenas quando representam um estado semantico ou uma necessidade especifica da tela (por exemplo, uma superficie de alerta ou um painel de camera), nao para recriar a identidade visual.
+
 ## API e Estado
 
 - Toda chamada HTTP deve passar por `src/lib/api`.
@@ -99,3 +113,11 @@ docs: 📝 atualiza guia de build
 - Fluxo principal testado no simulador ou web
 - `.env` e credenciais fora do commit
 - Nenhum `console.log` ou dado sensivel em tela/log
+
+
+## Feedback e confirmações
+
+- Use `AppToast` com `useAppToast` para mensagens breves de sucesso, aviso e erro em fluxos de interação.
+- Use `Modal` próprio e acessível para escolhas e confirmações que precisam funcionar igualmente no Android, iOS e web.
+- Evite `Alert.alert` em novas telas, pois o comportamento não é consistente no React Native Web.
+- Use `AppPageHeader`, `AppButton`, `AppCard`, `AppBadge` e `AppFieldLabel` antes de criar variantes locais.

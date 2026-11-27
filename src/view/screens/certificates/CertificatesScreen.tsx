@@ -7,12 +7,13 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppText as Text, AppTextInput as TextInput } from '@/components/ui/app-text';
+import { AppButton, AppCard, AppEmptyState, AppFilterChip, AppPageHeader, appLayoutStyles, appSurfaceStyles } from '@/components/ui/app-ui';
+import { colors } from '@/src/view/theme/tokens';
 import {
   getValidAuthSession,
   isAuthSessionError,
@@ -23,11 +24,9 @@ import {
 } from '@/src/lib/api/campus';
 import type { CampusEvent, Participant, UserRole } from '@/src/lib/api/schemas';
 import { clearAuthToken } from '@/src/lib/auth/token';
-
 import {
   CERTIFICATE_COLORS,
   CertificateInfoBanner,
-  CertificatePrimaryButton,
   CertificateSectionTitle,
   CertificateStatusPill,
   getPersonInitials,
@@ -38,6 +37,7 @@ type StudentFilter = 'all' | 'available' | 'pending';
 export default function CertificatesScreen() {
   const router = useRouter();
   const [role, setRole] = useState<UserRole | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [events, setEvents] = useState<CampusEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -53,6 +53,8 @@ export default function CertificatesScreen() {
     try {
       const session = await getValidAuthSession();
       setRole(session.payload.role);
+      const authenticatedUserId = Number(session.payload.sub);
+      setCurrentUserId(Number.isFinite(authenticatedUserId) ? authenticatedUserId : null);
 
       if (session.payload.role === 'student') {
         const subscribedEvents = await listSubscribedEvents();
@@ -134,8 +136,7 @@ export default function CertificatesScreen() {
             />
           }
           showsVerticalScrollIndicator={false}>
-          <Text style={styles.pageTitle}>Meus certificados</Text>
-          <Text style={styles.pageSubtitle}>Comprovantes de participação e carga horária.</Text>
+          <AppPageHeader title="Meus certificados" subtitle="Comprovantes de participação e certificados" />
 
           <View style={styles.searchBox}>
             <MaterialIcons name="search" size={20} color="#8B9199" />
@@ -146,7 +147,6 @@ export default function CertificatesScreen() {
               style={styles.searchInput}
               value={studentSearch}
             />
-            <MaterialIcons name="tune" size={19} color="#8B9199" />
           </View>
 
           <View style={styles.filterRow}>
@@ -189,9 +189,12 @@ export default function CertificatesScreen() {
     );
   }
 
-  const activeEvents = events.filter(
-    (event) => new Date(event.event_datetime).getTime() >= Date.now(),
-  ).length;
+  const certificateEvents = events.filter((event) => event.has_certificate === true);
+  const configuredCertificateEventCount = certificateEvents.length;
+  const certificateRegistrations = certificateEvents.reduce(
+    (total, event) => total + (typeof event.subscribers_count === 'number' ? event.subscribers_count : 0),
+    0,
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -206,17 +209,18 @@ export default function CertificatesScreen() {
           />
         }
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.pageTitle}>Certificados por evento</Text>
-        <Text style={styles.pageSubtitle}>Consulte participantes e acompanhe a situação dos certificados.</Text>
+        <AppPageHeader title="Certificados por evento" subtitle="Comprovantes de participação e certificados" />
 
         <View style={styles.metricsRow}>
-          <MetricCard value={String(activeEvents)} label="eventos ativos" />
-          <MetricCard value="—" label="participantes" helper="consulte por evento" />
-          <MetricCard value="—" label="certificados" helper="emissão ainda indisponível" />
+          <MetricCard value={String(configuredCertificateEventCount)} label="eventos com certificado" />
+          <MetricCard value={String(certificateRegistrations)} label="inscrições nesses eventos" />
         </View>
+        <Text style={styles.emissionNote}>
+          A emissão e o download dos certificados ainda não estão disponíveis.
+        </Text>
 
         <CertificateSectionTitle
-          title="Em andamento"
+          title="Eventos cadastrados"
           subtitle={`${events.length} ${events.length === 1 ? 'evento listado' : 'eventos listados'}`}
         />
 
@@ -241,6 +245,11 @@ export default function CertificatesScreen() {
           <TeacherEventCard
             key={event.id}
             event={event}
+            canViewParticipants={role === 'admin'
+              ? true
+              : currentUserId !== null && typeof event.user_id === 'number'
+                ? currentUserId === event.user_id
+                : null}
             onManage={() =>
               router.push({ pathname: '/certificados-participantes', params: { eventId: String(event.id) } } as never)
             }
@@ -256,20 +265,22 @@ export default function CertificatesScreen() {
 
 function MetricCard({ value, label, helper }: { value: string; label: string; helper?: string }) {
   return (
-    <View style={styles.metricCard}>
+    <AppCard padding={14} style={styles.metricCard}>
       <Text style={styles.metricValue}>{value}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
       {helper ? <Text style={styles.metricHelper}>{helper}</Text> : null}
-    </View>
+    </AppCard>
   );
 }
 
 function TeacherEventCard({
   event,
+  canViewParticipants,
   onManage,
   onConfigure,
 }: {
   event: CampusEvent;
+  canViewParticipants: boolean | null;
   onManage: () => void;
   onConfigure: () => void;
 }) {
@@ -310,10 +321,13 @@ function TeacherEventCard({
   const handleExpand = useCallback(() => {
     const nextExpanded = !expanded;
     setExpanded(nextExpanded);
-    if (nextExpanded && !hasLoadedParticipants && !isLoadingParticipants) {
-      void loadParticipants();
+    if (!nextExpanded || hasLoadedParticipants || isLoadingParticipants) return;
+    if (canViewParticipants === false) {
+      setPermissionDenied(true);
+      return;
     }
-  }, [expanded, hasLoadedParticipants, isLoadingParticipants, loadParticipants]);
+    void loadParticipants();
+  }, [canViewParticipants, expanded, hasLoadedParticipants, isLoadingParticipants, loadParticipants]);
 
   const progress = event.max_participants && typeof participantCount === 'number'
     ? Math.min(participantCount / event.max_participants, 1)
@@ -332,8 +346,8 @@ function TeacherEventCard({
             <Text style={styles.eventDate}>{formatEventDate(event.event_datetime)}</Text>
           </View>
           <CertificateStatusPill
-            label={event.has_certificate === true ? 'Pendente' : 'Sem certificado'}
-            tone={event.has_certificate === true ? 'warning' : 'neutral'}
+            label={event.has_certificate === true ? 'Configurado' : 'Não configurado'}
+            tone={event.has_certificate === true ? 'success' : 'neutral'}
           />
         </View>
         <View style={styles.eventMetadata}>
@@ -355,7 +369,7 @@ function TeacherEventCard({
           </View>
         ) : null}
         <View style={styles.expandHintRow}>
-          <Text style={styles.expandHint}>{expanded ? 'Ocultar participantes' : 'Toque para ver os participantes'}</Text>
+          <Text style={styles.expandHint}>{expanded ? 'Ocultar participantes' : 'Ver participantes'}</Text>
           <MaterialIcons name={expanded ? 'expand-less' : 'expand-more'} size={22} color="#616873" />
         </View>
       </Pressable>
@@ -373,10 +387,10 @@ function TeacherEventCard({
               <Text style={styles.inlineLoadingText}>Consultando participantes...</Text>
             </View>
           ) : null}
-          {permissionDenied ? (
+          {permissionDenied || canViewParticipants === false ? (
             <CertificateInfoBanner
-              title="Acesso restrito"
-              message="Somente o professor responsável pelo evento ou um administrador pode consultar os participantes."
+              title="Lista de participantes restrita"
+              message="A lista completa fica disponível para o professor responsável pelo evento e para a administração."
               tone="info"
             />
           ) : participantsError ? (
@@ -394,17 +408,25 @@ function TeacherEventCard({
                 <ParticipantPreview key={participant.user_id} participant={participant} />
               ))
             : null}
-          {!permissionDenied ? (
+          {!permissionDenied && canViewParticipants !== false ? (
             <View style={styles.eventActions}>
-              <View style={styles.eventActionFlex}>
-                <CertificatePrimaryButton label="Gerenciar participantes" onPress={onManage} icon="arrow-forward" />
-              </View>
-              <Pressable accessibilityRole="button" onPress={onConfigure} style={styles.configureShortcut}>
-                <MaterialIcons name="card-membership" size={17} color="#343A40" />
-                <Text style={styles.configureShortcutText}>
-                  {event.has_certificate === true ? 'Configurar' : 'Habilitar certificado'}
-                </Text>
-              </Pressable>
+              <AppButton
+                label="Ver inscritos"
+                accessibilityLabel="Gerenciar participantes inscritos"
+                variant="primary"
+                size="sm"
+                equalWidth
+                icon={<MaterialIcons name="groups" size={15} color={colors.text.primary} />}
+                onPress={onManage}
+              />
+              <AppButton
+                label={event.has_certificate === true ? 'Configurar' : 'Habilitar'}
+                variant="outline"
+                size="sm"
+                equalWidth
+                icon={<MaterialIcons name="card-membership" size={15} color={colors.text.heading} />}
+                onPress={onConfigure}
+              />
             </View>
           ) : null}
         </View>
@@ -437,7 +459,7 @@ function StudentCertificateCard({ event, onPress }: { event: CampusEvent; onPres
       style={({ pressed }) => [styles.studentCard, pressed && styles.pressed]}>
       <View style={styles.studentCardTop}>
         <View style={styles.studentCardIcon}>
-          <MaterialIcons name="workspace-premium" size={19} color="#171717" />
+          <MaterialIcons name="workspace-premium" size={19} color={colors.text.primary} />
         </View>
         <CertificateStatusPill label="Pendente" tone="warning" />
       </View>
@@ -450,7 +472,7 @@ function StudentCertificateCard({ event, onPress }: { event: CampusEvent; onPres
         <Text style={styles.studentDate}>{formatEventDate(event.event_datetime)}</Text>
         <View style={styles.studentCardLinkRow}>
           <Text style={styles.studentCardLink}>Ver detalhes</Text>
-          <MaterialIcons name="arrow-forward" size={15} color="#222222" />
+          <MaterialIcons name="arrow-forward" size={15} color={colors.text.primary} />
         </View>
       </View>
     </Pressable>
@@ -458,21 +480,13 @@ function StudentCertificateCard({ event, onPress }: { event: CampusEvent; onPres
 }
 
 function FilterChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={[styles.filterChip, selected && styles.filterChipSelected]}>
-      <Text style={[styles.filterChipText, selected && styles.filterChipTextSelected]}>{label}</Text>
-    </Pressable>
-  );
+  return <AppFilterChip label={label} selected={selected} onPress={onPress} />;
 }
 
 function MetaItem({ icon, label }: { icon: keyof typeof MaterialIcons.glyphMap; label: string }) {
   return (
     <View style={styles.eventMetaItem}>
-      <MaterialIcons name={icon} size={14} color="#777F88" />
+      <MaterialIcons name={icon} size={14} color={colors.text.muted} />
       <Text numberOfLines={1} style={styles.eventMetaText}>{label}</Text>
     </View>
   );
@@ -481,24 +495,21 @@ function MetaItem({ icon, label }: { icon: keyof typeof MaterialIcons.glyphMap; 
 function ErrorNotice({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <View style={styles.errorNotice}>
-      <MaterialIcons name="error-outline" size={21} color="#B42318" />
+      <MaterialIcons name="error-outline" size={21} color={colors.status.danger} />
       <Text style={styles.errorText}>{message}</Text>
-      <Pressable accessibilityRole="button" onPress={onRetry} style={styles.retryButton}>
-        <Text style={styles.retryButtonText}>Tentar novamente</Text>
-      </Pressable>
+      <AppButton label="Tentar novamente" variant="outline" size="md" onPress={onRetry} style={styles.retryButton} />
     </View>
   );
 }
 
 function EmptyState({ icon, title, message }: { icon: keyof typeof MaterialIcons.glyphMap; title: string; message: string }) {
   return (
-    <View style={styles.emptyState}>
-      <View style={styles.emptyIcon}>
-        <MaterialIcons name={icon} size={23} color="#9298A0" />
-      </View>
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.emptyMessage}>{message}</Text>
-    </View>
+    <AppEmptyState
+      icon={<MaterialIcons name={icon} size={23} color={colors.text.muted} />}
+      title={title}
+      description={message}
+      style={styles.emptyState}
+    />
   );
 }
 
@@ -522,74 +533,62 @@ function formatHoursGroup(value: CampusEvent['hours_group']) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { backgroundColor: CERTIFICATE_COLORS.background, flex: 1 },
+  safeArea: { ...appLayoutStyles.screen, flex: 1 },
   loadingScreen: { alignItems: 'center', backgroundColor: CERTIFICATE_COLORS.background, flex: 1, justifyContent: 'center' },
-  loadingRow: { alignItems: 'center', flexDirection: 'row', gap: 9, justifyContent: 'center', paddingVertical: 18 },
-  loadingText: { color: CERTIFICATE_COLORS.muted, fontSize: 10 },
-  content: { paddingBottom: 34, paddingHorizontal: 18, paddingTop: 16 },
-  pageTitle: { color: CERTIFICATE_COLORS.ink, fontSize: 23, fontWeight: '900', letterSpacing: -0.5 },
-  pageSubtitle: { color: CERTIFICATE_COLORS.muted, fontSize: 10, lineHeight: 15, marginTop: 3 },
-  metricsRow: { flexDirection: 'row', gap: 8, marginBottom: 22, marginTop: 18 },
-  metricCard: { backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 9, borderWidth: 1, flex: 1, minHeight: 66, paddingHorizontal: 10, paddingVertical: 9 },
-  metricValue: { color: '#272B30', fontSize: 20, fontWeight: '900' },
-  metricLabel: { color: '#737B84', fontSize: 9, marginTop: 2 },
-  metricHelper: { color: '#A1A6AC', fontSize: 7, marginTop: 3 },
-  eventCard: { backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 11, borderWidth: 1, marginBottom: 12, overflow: 'hidden' },
-  eventCardHeader: { paddingHorizontal: 13, paddingTop: 13, paddingBottom: 11 },
-  eventTopRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 8, justifyContent: 'space-between' },
-  eventTitleWrap: { flex: 1, gap: 3 },
-  eventTitle: { color: '#343A40', fontSize: 13, fontWeight: '900', lineHeight: 17 },
-  eventDate: { color: '#8A9199', fontSize: 9 },
-  eventMetadata: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 10 },
-  eventMetaItem: { alignItems: 'center', flexDirection: 'row', gap: 4, maxWidth: '48%' },
-  eventMetaText: { color: '#7B838C', fontSize: 9 },
-  progressBlock: { marginTop: 11 },
-  progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
-  progressLabel: { color: '#6E7680', fontSize: 8 },
-  progressValue: { color: '#9A7100', fontSize: 8, fontWeight: '800' },
-  progressTrack: { backgroundColor: '#ECEDEF', borderRadius: 5, height: 5, overflow: 'hidden' },
-  progressFill: { backgroundColor: CERTIFICATE_COLORS.primary, borderRadius: 5, height: 5 },
-  expandHintRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 9 },
-  expandHint: { color: '#6E7680', fontSize: 9, fontWeight: '700' },
-  expandedPanel: { paddingHorizontal: 13, paddingBottom: 13 },
-  panelDivider: { backgroundColor: '#ECEDEF', height: 1, marginBottom: 12 },
-  inlineLoading: { alignItems: 'center', flexDirection: 'row', gap: 8, paddingVertical: 12 },
-  inlineLoadingText: { color: '#747C85', fontSize: 9 },
-  noSubscribers: { color: '#777F88', fontSize: 10, paddingVertical: 10 },
-  subscriberPreview: { alignItems: 'center', borderBottomColor: '#F0F1F2', borderBottomWidth: 1, flexDirection: 'row', gap: 9, paddingVertical: 8 },
-  avatar: { alignItems: 'center', backgroundColor: CERTIFICATE_COLORS.primary, borderRadius: 17, height: 34, justifyContent: 'center', width: 34 },
-  avatarText: { color: '#171717', fontSize: 10, fontWeight: '900' },
-  subscriberIdentity: { flex: 1, gap: 2 },
-  subscriberName: { color: '#343A40', fontSize: 10, fontWeight: '800' },
-  subscriberRa: { color: '#858C94', fontSize: 8 },
-  eventActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  eventActionFlex: { flex: 1 },
-  configureShortcut: { alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#C9CDD1', borderRadius: 8, borderWidth: 1, flexDirection: 'row', gap: 5, justifyContent: 'center', paddingHorizontal: 10 },
-  configureShortcutText: { color: '#343A40', fontSize: 9, fontWeight: '800' },
-  pressed: { opacity: 0.83 },
-  errorNotice: { alignItems: 'center', backgroundColor: '#FFF4E5', borderColor: '#F0D8A8', borderRadius: 10, borderWidth: 1, marginBottom: 12, padding: 14 },
-  errorText: { color: '#6F5421', fontSize: 10, lineHeight: 15, marginTop: 7, textAlign: 'center' },
-  retryButton: { backgroundColor: CERTIFICATE_COLORS.primary, borderRadius: 7, marginTop: 10, paddingHorizontal: 14, paddingVertical: 8 },
-  retryButtonText: { color: '#171717', fontSize: 9, fontWeight: '900' },
-  emptyState: { alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 11, borderWidth: 1, marginTop: 12, paddingHorizontal: 22, paddingVertical: 28 },
-  emptyIcon: { alignItems: 'center', backgroundColor: '#F1F2F3', borderRadius: 22, height: 44, justifyContent: 'center', width: 44 },
-  emptyTitle: { color: '#343A40', fontSize: 11, fontWeight: '900', marginTop: 10 },
-  emptyMessage: { color: '#858C94', fontSize: 9, lineHeight: 14, marginTop: 5, textAlign: 'center' },
-  searchBox: { alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 9, borderWidth: 1, flexDirection: 'row', gap: 8, height: 42, marginTop: 17, paddingHorizontal: 11 },
-  searchInput: { color: '#343A40', flex: 1, fontSize: 10, height: '100%' },
-  filterRow: { flexDirection: 'row', gap: 7, marginBottom: 14, marginTop: 10 },
-  filterChip: { backgroundColor: '#FFFFFF', borderColor: '#E1E3E5', borderRadius: 16, borderWidth: 1, paddingHorizontal: 13, paddingVertical: 7 },
-  filterChipSelected: { backgroundColor: CERTIFICATE_COLORS.primary, borderColor: CERTIFICATE_COLORS.primary },
-  filterChipText: { color: '#59616A', fontSize: 9, fontWeight: '700' },
-  filterChipTextSelected: { color: '#171717', fontWeight: '900' },
-  studentCard: { backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 10, borderWidth: 1, marginBottom: 10, padding: 13 },
+  loadingRow: { alignItems: 'center', flexDirection: 'row', gap: 9, justifyContent: 'center', paddingVertical: 20 },
+  loadingText: { color: CERTIFICATE_COLORS.muted, fontSize: 12 },
+  content: { ...appLayoutStyles.content, paddingBottom: 40 },
+  metricsRow: { flexDirection: 'row', gap: 12, marginBottom: 10, marginTop: 8 },
+  metricCard: { ...appSurfaceStyles.card, flex: 1, minHeight: 82, padding: 14 },
+  metricValue: { color: colors.text.heading, fontSize: 22, fontWeight: '700' },
+  metricLabel: { color: colors.text.secondary, fontSize: 11, lineHeight: 16, marginTop: 4 },
+  metricHelper: { color: colors.text.muted, fontSize: 11, marginTop: 3 },
+  emissionNote: { color: colors.text.muted, fontSize: 11, lineHeight: 16, marginBottom: 18 },
+  eventCard: { ...appSurfaceStyles.card, marginBottom: 12, overflow: 'hidden' },
+  eventCardHeader: { paddingHorizontal: 16, paddingTop: 15, paddingBottom: 13 },
+  eventTopRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 10, justifyContent: 'space-between' },
+  eventTitleWrap: { flex: 1, gap: 4 },
+  eventTitle: { color: colors.text.heading, fontSize: 16, fontWeight: '700', lineHeight: 22 },
+  eventDate: { color: colors.text.muted, fontSize: 11, lineHeight: 16 },
+  eventMetadata: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 12 },
+  eventMetaItem: { alignItems: 'center', flexDirection: 'row', gap: 5, maxWidth: '48%' },
+  eventMetaText: { color: colors.text.secondary, fontSize: 11 },
+  progressBlock: { marginTop: 12 },
+  progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  progressLabel: { color: colors.text.secondary, fontSize: 11 },
+  progressValue: { color: colors.brand.emphasis, fontSize: 11, fontWeight: '600' },
+  progressTrack: { backgroundColor: colors.surface.subtle, borderRadius: 5, height: 6, overflow: 'hidden' },
+  progressFill: { backgroundColor: colors.brand.primary, borderRadius: 5, height: 6 },
+  expandHintRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
+  expandHint: { color: colors.text.secondary, fontSize: 11, fontWeight: '600' },
+  expandedPanel: { paddingHorizontal: 16, paddingBottom: 16 },
+  panelDivider: { backgroundColor: colors.border.default, height: 1, marginBottom: 14 },
+  inlineLoading: { alignItems: 'center', flexDirection: 'row', gap: 8, paddingVertical: 14 },
+  inlineLoadingText: { color: colors.text.secondary, fontSize: 11 },
+  noSubscribers: { color: colors.text.muted, fontSize: 12, paddingVertical: 12 },
+  subscriberPreview: { alignItems: 'center', borderBottomColor: colors.border.default, borderBottomWidth: 1, flexDirection: 'row', gap: 10, paddingVertical: 10 },
+  avatar: { alignItems: 'center', backgroundColor: colors.brand.primary, borderRadius: 18, height: 36, justifyContent: 'center', width: 36 },
+  avatarText: { color: colors.text.primary, fontSize: 11, fontWeight: '700' },
+  subscriberIdentity: { flex: 1, gap: 3 },
+  subscriberName: { color: colors.text.heading, fontSize: 12, fontWeight: '600' },
+  subscriberRa: { color: colors.text.muted, fontSize: 11 },
+  eventActions: { flexDirection: 'row', flexWrap: 'nowrap', gap: 8, marginTop: 16 },
+  pressed: { opacity: 0.82 },
+  errorNotice: { alignItems: 'center', backgroundColor: colors.status.warningSoft, borderColor: colors.border.default, borderRadius: 12, borderWidth: 1, marginBottom: 14, padding: 16 },
+  errorText: { color: colors.status.warning, fontSize: 11, lineHeight: 16, marginTop: 8, textAlign: 'center' },
+  retryButton: { alignSelf: 'center', marginTop: 12 },
+  emptyState: { ...appSurfaceStyles.card, marginTop: 12 },
+  searchBox: { ...appSurfaceStyles.input, alignItems: 'center', flexDirection: 'row', gap: 8, height: 48, minHeight: 48, marginTop: 16 },
+  searchInput: { color: colors.text.heading, flex: 1, fontSize: 14, height: '100%' },
+  filterRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16, marginTop: 12 },
+  studentCard: { ...appSurfaceStyles.card, marginBottom: 12, padding: 16 },
   studentCardTop: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  studentCardIcon: { alignItems: 'center', backgroundColor: CERTIFICATE_COLORS.primary, borderRadius: 8, height: 34, justifyContent: 'center', width: 34 },
-  studentEventName: { color: '#343A40', fontSize: 12, fontWeight: '900', marginTop: 10 },
-  studentMetadata: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 7 },
-  studentMetadataText: { color: '#858C94', fontSize: 9 },
-  studentCardFooter: { alignItems: 'center', borderTopColor: '#EEF0F1', borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-between', marginTop: 11, paddingTop: 9 },
-  studentDate: { color: '#8C939B', fontSize: 8 },
+  studentCardIcon: { alignItems: 'center', backgroundColor: colors.brand.soft, borderRadius: 10, height: 38, justifyContent: 'center', width: 38 },
+  studentEventName: { color: colors.text.heading, fontSize: 14, fontWeight: '600', marginTop: 12 },
+  studentMetadata: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
+  studentMetadataText: { color: colors.text.secondary, fontSize: 11 },
+  studentCardFooter: { alignItems: 'center', borderTopColor: colors.border.default, borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, paddingTop: 10 },
+  studentDate: { color: colors.text.muted, fontSize: 11 },
   studentCardLinkRow: { alignItems: 'center', flexDirection: 'row', gap: 5 },
-  studentCardLink: { color: '#24282D', fontSize: 9, fontWeight: '900' },
+  studentCardLink: { color: colors.text.heading, fontSize: 12, fontWeight: '600' },
 });

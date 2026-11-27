@@ -1,8 +1,13 @@
-import { useRouter } from 'expo-router';
+import {
+  useRouter } from 'expo-router';
 import { useState } from 'react';
 import * as Animatable from 'react-native-animatable';
-import { Pressable, Text } from 'react-native';
+import {
+  Platform,
+  Pressable,
+} from 'react-native';
 
+import { AppText as Text } from '@/components/ui/app-text';
 import {
   AuthFeedbackModal,
   type AuthFeedbackModalState,
@@ -166,7 +171,7 @@ export default function VerifyEmailScreen() {
       badge="Confirmação"
       onBack={handleBack}
       footer={<AuthFeedbackModal modal={modal} onClose={closeModal} />}>
-      <Animatable.View animation="fadeInUp" duration={420} useNativeDriver>
+      <Animatable.View animation="fadeInUp" duration={420} useNativeDriver={Platform.OS !== 'web'}>
         <Text style={authTextStyles.title}>Confirme seu{'\n'}e-mail</Text>
         <Text style={authTextStyles.description}>
           Enviamos um código de {CODE_LENGTH} caracteres para o e-mail do cadastro. Ele vale por

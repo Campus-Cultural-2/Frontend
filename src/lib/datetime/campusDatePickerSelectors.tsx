@@ -1,9 +1,15 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+} from 'react-native';
 import type {
   CalendarMonthSelectorProps,
   CalendarYearSelectorProps,
 } from 'react-native-ui-datepicker';
+
+import { AppText as Text } from '@/components/ui/app-text';
+import { colors } from '@/src/view/theme/tokens';
 
 export function CampusMonthSelector({ text, isOpen, onPress }: CalendarMonthSelectorProps) {
   return (
@@ -16,7 +22,7 @@ export function CampusMonthSelector({ text, isOpen, onPress }: CalendarMonthSele
       style={({ pressed }) => [selectorStyles.control, pressed ? selectorStyles.controlPressed : null]}>
       <Text style={selectorStyles.label}>{text}</Text>
       <MaterialIcons
-        color="#5F6670"
+        color={colors.text.secondary}
         name={isOpen ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
         size={22}
       />
@@ -37,7 +43,7 @@ export function CampusYearSelector({ year, yearRange, isOpen, onPress }: Calenda
       style={({ pressed }) => [selectorStyles.control, pressed ? selectorStyles.controlPressed : null]}>
       <Text style={selectorStyles.label}>{label}</Text>
       <MaterialIcons
-        color="#5F6670"
+        color={colors.text.secondary}
         name={isOpen ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
         size={22}
       />
@@ -57,7 +63,7 @@ const selectorStyles = StyleSheet.create({
     opacity: 0.65,
   },
   label: {
-    color: '#20242A',
+    color: colors.text.heading,
     fontSize: 15,
     fontWeight: '800',
   },

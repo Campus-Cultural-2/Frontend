@@ -1,13 +1,20 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppText as Text } from '@/components/ui/app-text';
+import { appLayoutStyles, appSurfaceStyles } from '@/components/ui/app-ui';
+import { colors } from '@/src/view/theme/tokens';
 import { getEvent, getValidAuthSession, isAuthSessionError, listSubscribedEvents } from '@/src/lib/api/campus';
 import type { CampusEvent } from '@/src/lib/api/schemas';
 import { clearAuthToken } from '@/src/lib/auth/token';
-
 import {
   CERTIFICATE_COLORS,
   CertificateInfoBanner,
@@ -108,7 +115,7 @@ export default function CertificateEventDetailsScreen() {
             <View style={styles.certificateCard}>
               <View style={styles.certificateCardTop}>
                 <View style={styles.certificateIcon}>
-                  <MaterialIcons name="card-membership" size={20} color="#171717" />
+                  <MaterialIcons name="card-membership" size={20} color={colors.text.primary} />
                 </View>
                 <CertificateStatusPill label={event.has_certificate ? 'Previsto' : 'Não oferece'} tone={event.has_certificate ? 'warning' : 'neutral'} />
               </View>
@@ -124,10 +131,10 @@ export default function CertificateEventDetailsScreen() {
             </View>
 
             <CertificateInfoBanner
-              title={isSubscribed ? 'Inscrição confirmada' : 'Acompanhe sua inscrição pela Agenda'}
+              title={isSubscribed ? 'Inscrição confirmada' : 'Acompanhe sua inscrição em Calendário de Eventos'}
               message={isSubscribed
                 ? 'Sua inscrição está registrada. Acompanhe a confirmação de presença na área de presença. O certificado ficará disponível aqui quando for publicado.'
-                : 'Este evento não aparece na sua lista de inscrições. Consulte a Agenda para verificar a disponibilidade de inscrição.'}
+                : 'Este evento não aparece na sua lista de inscrições. Consulte o Calendário de Eventos para verificar a disponibilidade de inscrição.'}
               tone={isSubscribed ? 'success' : 'info'}
             />
             {event.has_certificate === true ? (
@@ -182,20 +189,22 @@ function formatTime(value: string) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { backgroundColor: CERTIFICATE_COLORS.background, flex: 1 },
+  safeArea: {
+    ...appLayoutStyles.screen, flex: 1 },
   loadingScreen: { alignItems: 'center', backgroundColor: CERTIFICATE_COLORS.background, flex: 1, justifyContent: 'center' },
-  content: { paddingBottom: 30, paddingHorizontal: 18, paddingTop: 15 },
-  heroCard: { backgroundColor: '#202124', borderRadius: 12, marginBottom: 12, padding: 16 },
+  content: {
+    ...appLayoutStyles.content, paddingBottom: 30 },
+  heroCard: { backgroundColor: colors.text.heading, borderRadius: 12, marginBottom: 12, padding: 16 },
   heroTop: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   heroDate: { color: CERTIFICATE_COLORS.primary, fontSize: 9, fontWeight: '900', textTransform: 'uppercase' },
-  heroTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '900', lineHeight: 24, marginTop: 28 },
+  heroTitle: { color: colors.neutral.white, fontSize: 20, fontWeight: '900', lineHeight: 24, marginTop: 28 },
   heroAccent: { backgroundColor: CERTIFICATE_COLORS.primary, borderRadius: 3, height: 4, marginTop: 9, width: 42 },
   heroDescription: { color: '#D0D2D4', fontSize: 10, lineHeight: 16, marginTop: 12 },
-  detailsCard: { backgroundColor: '#FFFFFF', borderColor: '#E5E7E9', borderRadius: 10, borderWidth: 1, marginBottom: 12, paddingHorizontal: 13 },
-  detailRow: { alignItems: 'center', borderBottomColor: '#EEF0F1', borderBottomWidth: 1, flexDirection: 'row', gap: 10, paddingVertical: 13 },
+  detailsCard: { ...appSurfaceStyles.card, marginBottom: 12, paddingHorizontal: 16 },
+  detailRow: { alignItems: 'center', borderBottomColor: colors.border.default, borderBottomWidth: 1, flexDirection: 'row', gap: 10, paddingVertical: 13 },
   detailCopy: { flex: 1, gap: 3 },
   detailLabel: { color: '#8B929A', fontSize: 8 },
-  detailValue: { color: '#343A40', fontSize: 10, fontWeight: '700' },
+  detailValue: { color: colors.text.heading, fontSize: 10, fontWeight: '700' },
   certificateCard: { backgroundColor: '#FFF1D1', borderRadius: 10, marginBottom: 13, padding: 14 },
   certificateCardTop: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   certificateIcon: { alignItems: 'center', backgroundColor: CERTIFICATE_COLORS.primary, borderRadius: 8, height: 34, justifyContent: 'center', width: 34 },

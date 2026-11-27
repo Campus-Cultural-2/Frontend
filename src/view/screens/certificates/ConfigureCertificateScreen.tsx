@@ -67,7 +67,7 @@ export default function ConfigureCertificateScreen() {
     try {
       const session = await getValidAuthSession();
       if (session.payload.role !== 'professor' && session.payload.role !== 'admin') {
-        router.replace('/(tabs)/certificados' as never);
+        router.replace('/(tabs)/(main)/certificados' as never);
         return;
       }
 

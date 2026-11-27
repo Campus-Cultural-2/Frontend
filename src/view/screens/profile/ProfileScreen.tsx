@@ -12,12 +12,14 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
+import type { TextInput as NativeTextInputInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppText as Text, AppTextInput as TextInput } from '@/components/ui/app-text';
+import { AppButton, AppFieldLabel, AppPageHeader, appLayoutStyles, appSurfaceStyles } from '@/components/ui/app-ui';
+import { colors } from '@/src/view/theme/tokens';
 import { AppToast } from '@/components/ui/app-toast';
 import { UnsavedChangesDialog } from '@/components/ui/unsaved-changes-dialog';
 import {
@@ -268,27 +270,25 @@ export default function ProfileScreen() {
             Platform.OS === 'ios' ? 'interactive' : 'on-drag'
           }
         >
-        {canManageEvents ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Voltar para Gestão"
-            onPress={() =>
-              requestLeave(() =>
-                router.canGoBack() ? router.back() : router.replace('/gestao' as never),
-              )
-            }
-            style={styles.backButton}
-          >
-            <MaterialIcons name="arrow-back" size={20} color="#30343A" />
-            <Text style={styles.backButtonText}>Voltar</Text>
-          </Pressable>
-        ) : null}
+        <AppPageHeader
+          title="Meu Perfil"
+          leading={canManageEvents ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Voltar para Gestão"
+              onPress={() => requestLeave(() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/(main)/gestao' as never)))}
+              style={appSurfaceStyles.iconButton}>
+              <MaterialIcons name="arrow-back" size={20} color={colors.text.heading} />
+            </Pressable>
+          ) : undefined}
+          style={styles.profilePageHeader}
+        />
 
         <Animatable.View
           animation="zoomIn"
           duration={440}
           style={styles.profileHeader}
-          useNativeDriver
+          useNativeDriver={Platform.OS !== 'web'}
         >
           <Pressable
             accessibilityRole="button"
@@ -307,7 +307,7 @@ export default function ProfileScreen() {
               )}
             </View>
             <View style={styles.editBadge}>
-              <MaterialIcons name="edit" size={16} color="#111111" />
+              <MaterialIcons name="edit" size={16} color={colors.text.primary} />
             </View>
           </Pressable>
           {profileImageUri ? (
@@ -317,11 +317,10 @@ export default function ProfileScreen() {
               disabled={isSavingProfile}
               onPress={() => setProfileImageUri(null)}
               style={styles.removePhotoButton}>
-              <MaterialIcons name="delete-outline" size={15} color="#B42318" />
+              <MaterialIcons name="delete-outline" size={15} color={colors.status.danger} />
               <Text style={styles.removePhotoText}>Remover foto</Text>
             </Pressable>
           ) : null}
-          <Text style={styles.title}>Meu Perfil</Text>
         </Animatable.View>
 
         {isLoading ? (
@@ -329,14 +328,14 @@ export default function ProfileScreen() {
             animation="pulse"
             iterationCount="infinite"
             style={styles.feedbackBox}
-            useNativeDriver>
-            <ActivityIndicator color="#111111" />
+            useNativeDriver={Platform.OS !== 'web'}>
+            <ActivityIndicator color={colors.text.primary} />
             <Text style={styles.feedbackText}>Carregando perfil...</Text>
           </Animatable.View>
         ) : null}
 
         {!isLoading && error ? (
-          <Animatable.View animation="fadeIn" duration={320} style={styles.feedbackBox} useNativeDriver>
+          <Animatable.View animation="fadeIn" duration={320} style={styles.feedbackBox} useNativeDriver={Platform.OS !== 'web'}>
             <MaterialIcons name="warning" size={22} color="#B45309" />
             <Text style={styles.feedbackText}>{error}</Text>
           </Animatable.View>
@@ -382,32 +381,31 @@ export default function ProfileScreen() {
               />
             ) : null}
 
-            <Animatable.View animation="fadeInUp" delay={320} duration={360} useNativeDriver>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Atualizar dados"
+            <Animatable.View animation="fadeInUp" delay={320} duration={360} useNativeDriver={Platform.OS !== 'web'}>
+              <AppButton
+                label="Atualizar dados"
+                variant="primary"
+                size="lg"
+                fullWidth
                 disabled={isSavingProfile}
+                loading={isSavingProfile}
+                icon={!isSavingProfile ? <MaterialIcons name="save" size={17} color={colors.text.primary} /> : undefined}
                 onPress={handleUpdateProfile}
-                style={[styles.primaryButton, isSavingProfile ? styles.buttonDisabled : null]}>
-                {isSavingProfile ? (
-                  <ActivityIndicator color="#111111" />
-                ) : (
-                  <MaterialIcons name="save" size={15} color="#111111" />
-                )}
-                <Text style={styles.primaryButtonText}>Atualizar dados</Text>
-              </Pressable>
+                style={styles.profileAction}
+              />
             </Animatable.View>
 
             {!canManageEvents ? (
-              <Animatable.View animation="fadeInUp" delay={440} duration={360} useNativeDriver>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Sair da conta"
+              <Animatable.View animation="fadeInUp" delay={440} duration={360} useNativeDriver={Platform.OS !== 'web'}>
+                <AppButton
+                  label="Sair da conta"
+                  variant="outline"
+                  size="md"
+                  fullWidth
+                  icon={<MaterialIcons name="logout" size={17} color={colors.text.secondary} />}
                   onPress={() => requestLeave(() => void handleSignOut())}
-                  style={styles.signOutButton}>
-                  <MaterialIcons name="logout" size={15} color="#676C74" />
-                  <Text style={styles.signOutText}>Sair da conta</Text>
-                </Pressable>
+                  style={styles.profileAction}
+                />
               </Animatable.View>
             ) : null}
           </View>
@@ -443,7 +441,7 @@ function ProfileField({
   value: string;
 }) {
   const [isFocused, setIsFocused] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<NativeTextInputInstance>(null);
 
   return (
     <Animatable.View
@@ -451,8 +449,8 @@ function ProfileField({
       delay={delay}
       duration={360}
       style={styles.fieldGroup}
-      useNativeDriver>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      useNativeDriver={Platform.OS !== 'web'}>
+      <AppFieldLabel label={label} style={styles.fieldLabelGroup} />
       <Pressable
         disabled={!editable}
         onPress={() => inputRef.current?.focus()}
@@ -502,32 +500,20 @@ function isInstitutionalEmail(email: string) {
 }
 
 const styles = StyleSheet.create({
-  backButton: {
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-    minHeight: 36,
-    paddingHorizontal: 2,
-  },
-  backButtonText: {
-    color: '#30343A',
-    fontSize: 13,
-    fontWeight: '700',
-  },
+  profilePageHeader: { marginBottom: 18 },
   safeArea: {
+    ...appLayoutStyles.screen,
     flex: 1,
-    backgroundColor: '#F8F8F9',
   },
   keyboardView: {
   flex: 1,
   },
   content: {
+    ...appLayoutStyles.content,
     flexGrow: 1,
     paddingBottom: 102,
-    paddingHorizontal: 22,
-    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingTop: 20,
   },
   profileHeader: {
     alignItems: 'center',
@@ -536,7 +522,7 @@ const styles = StyleSheet.create({
   },
   avatarOuter: {
     alignItems: 'center',
-    borderColor: '#FFCC00',
+    borderColor: colors.brand.primary,
     borderRadius: 18,
     borderWidth: 3,
     height: 122,
@@ -546,7 +532,7 @@ const styles = StyleSheet.create({
   avatarInner: {
     alignItems: 'center',
     backgroundColor: '#C59A70',
-    borderColor: '#222222',
+    borderColor: colors.text.primary,
     borderRadius: 14,
     borderWidth: 2,
     height: 106,
@@ -560,7 +546,7 @@ const styles = StyleSheet.create({
   },
   editBadge: {
     alignItems: 'center',
-    backgroundColor: '#FFCC00',
+    backgroundColor: colors.brand.primary,
     borderRadius: 15,
     bottom: 8,
     height: 30,
@@ -580,22 +566,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   removePhotoText: {
-    color: '#B42318',
+    color: colors.status.danger,
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
-  title: {
-    color: '#242424',
-    fontSize: 24,
-    fontWeight: '900',
-    marginTop: 14,
-  },
   feedbackBox: {
+    ...appSurfaceStyles.card,
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
     gap: 10,
     marginBottom: 18,
     padding: 18,
@@ -615,35 +594,30 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   searchBox: {
+    ...appSurfaceStyles.input,
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#D8D9DD',
-    borderWidth: 1,
     flexDirection: 'row',
     gap: 10,
     height: 52,
     paddingHorizontal: 14,
   },
   searchBoxFocused: {
-    backgroundColor: '#FFFBEA',
-    borderColor: '#FFCC00',
+    backgroundColor: colors.brand.soft,
+    borderColor: colors.brand.primary,
   },
   searchInput: {
-    color: '#20242A',
+    color: colors.text.heading,
     flex: 1,
     fontSize: 13,
     fontWeight: '700',
     height: '100%',
   },
   editableEventCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
+    ...appSurfaceStyles.card,
+    borderRadius: 16,
     minHeight: 78,
     overflow: 'hidden',
-    shadowColor: '#111111',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.04,
-    shadowRadius: 14,
+    boxShadow: '0px 8px 14px rgba(17, 17, 17, 0.04)',
     elevation: 1,
   },
   editableEventButton: {
@@ -651,7 +625,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   eventAccent: {
-    backgroundColor: '#FFCC00',
+    backgroundColor: colors.brand.primary,
     width: 4,
   },
   editableEventContent: {
@@ -666,7 +640,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   editableEventTitle: {
-    color: '#20242A',
+    color: colors.text.heading,
     flex: 1,
     fontSize: 13,
     fontWeight: '900',
@@ -685,7 +659,7 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   eventMetaText: {
-    color: '#5F6670',
+    color: colors.text.secondary,
     fontSize: 10,
     fontWeight: '700',
   },
@@ -698,31 +672,21 @@ const styles = StyleSheet.create({
   fieldGroup: {
     gap: 7,
   },
-  fieldLabel: {
-    color: '#303239',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
+  fieldLabelGroup: { marginBottom: 0 },
+  profileAction: { alignSelf: 'stretch', marginTop: 4 },
   fieldBox: {
+    ...appSurfaceStyles.input,
     alignItems: 'center',
-    backgroundColor: '#F0F0F1',
-    borderColor: '#F0F0F1',
-    borderBottomColor: '#D7D7D9',
-    borderBottomWidth: 1,
-    borderWidth: 1,
     flexDirection: 'row',
     height: 44,
     paddingHorizontal: 12,
   },
   fieldBoxFocused: {
-    backgroundColor: '#FFFBEA',
-    borderBottomColor: '#FFCC00',
-    borderColor: '#FFCC00',
+    backgroundColor: colors.brand.soft,
+    borderColor: colors.brand.primary,
   },
   fieldValue: {
-    color: '#20242A',
+    color: colors.text.heading,
     flex: 1,
     fontSize: 13,
     fontWeight: '700',
@@ -730,11 +694,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   fieldValueDisabled: {
-    color: '#20242A',
+    color: colors.text.heading,
   },
   primaryButton: {
     alignItems: 'center',
-    backgroundColor: '#FFCC00',
+    backgroundColor: colors.brand.primary,
     borderRadius: 5,
     flexDirection: 'row',
     gap: 8,
@@ -749,7 +713,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   primaryButtonText: {
-    color: '#111111',
+    color: colors.text.primary,
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.9,

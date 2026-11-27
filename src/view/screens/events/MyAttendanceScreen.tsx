@@ -6,12 +6,13 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppText as Text, AppTextInput as TextInput } from '@/components/ui/app-text';
+import { AppButton, AppPageHeader, appLayoutStyles, appSurfaceStyles } from '@/components/ui/app-ui';
+import { colors } from '@/src/view/theme/tokens';
 import { AppToast } from '@/components/ui/app-toast';
 import { QrCode } from '@/components/ui/qr-code';
 import { QrScannerModal } from '@/components/ui/qr-scanner-modal';
@@ -105,21 +106,23 @@ export default function MyAttendanceScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityLabel="Voltar"
-          accessibilityRole="button"
-          hitSlop={10}
-          onPress={() => router.back()}>
-          <MaterialIcons name="arrow-back" size={22} color="#111111" />
-        </Pressable>
-        <Text numberOfLines={1} style={styles.headerTitle}>
-          {event?.name ?? 'Presença'}
-        </Text>
-      </View>
+      <AppPageHeader
+        title={event?.name ?? 'Presença'}
+        leading={(
+          <Pressable
+            accessibilityLabel="Voltar"
+            accessibilityRole="button"
+            hitSlop={10}
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/(main)/calendario' as never))}
+            style={appSurfaceStyles.iconButton}>
+            <MaterialIcons name="arrow-back" size={20} color={colors.text.primary} />
+          </Pressable>
+        )}
+        style={styles.header}
+      />
 
       {isLoading ? (
-        <ActivityIndicator color="#111111" style={styles.loading} />
+        <ActivityIndicator color={colors.text.primary} style={styles.loading} />
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           {mode === 'none' ? (
@@ -131,7 +134,7 @@ export default function MyAttendanceScreen() {
           {mode !== 'none' ? (
             <View style={[styles.status, confirmedAt ? styles.statusOk : null]}>
               <MaterialIcons
-                color={confirmedAt ? '#1E7B3A' : '#6F7782'}
+                color={confirmedAt ? '#1E7B3A' : colors.text.secondary}
                 name={confirmedAt ? 'check-circle' : 'schedule'}
                 size={22}
               />
@@ -160,13 +163,14 @@ export default function MyAttendanceScreen() {
               <Text style={styles.hint}>
                 Leia o QR code mostrado pelo professor ou digite o código durante o evento.
               </Text>
-              <Pressable
-                accessibilityRole="button"
+              <AppButton
+                label="Ler QR code do evento"
+                variant="primary"
+                fullWidth
                 disabled={isSending}
                 onPress={() => setIsScannerOpen(true)}
-                style={styles.confirmButton}>
-                <Text style={styles.confirmText}>Ler QR code do evento</Text>
-              </Pressable>
+                style={styles.actionButton}
+              />
               <TextInput
                 autoCapitalize="characters"
                 autoCorrect={false}
@@ -176,13 +180,15 @@ export default function MyAttendanceScreen() {
                 style={styles.input}
                 value={code}
               />
-              <Pressable
-                accessibilityRole="button"
+              <AppButton
+                label="Confirmar presença"
+                variant="primary"
+                fullWidth
+                loading={isSending}
                 disabled={isSending}
                 onPress={() => void confirmPresence()}
-                style={styles.confirmButton}>
-                <Text style={styles.confirmText}>Confirmar presença</Text>
-              </Pressable>
+                style={styles.actionButton}
+              />
             </View>
           ) : null}
         </ScrollView>
@@ -203,40 +209,33 @@ export default function MyAttendanceScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { backgroundColor: '#FAFAFA', flex: 1 },
-  header: { alignItems: 'center', flexDirection: 'row', gap: 12, padding: 16 },
-  headerTitle: { color: '#111111', flex: 1, fontSize: 18, fontWeight: '700' },
+  safeArea: {
+    ...appLayoutStyles.screen, flex: 1 },
+  header: { ...appLayoutStyles.content, paddingBottom: 0, paddingTop: 0, marginBottom: 8 },
+  actionButton: { alignSelf: 'stretch' },
   loading: { marginTop: 40 },
-  content: { gap: 12, padding: 16 },
-  hint: { color: '#5F6670', fontSize: 13, lineHeight: 19 },
+  content: {
+    ...appLayoutStyles.content, gap: 16 },
+  hint: { color: colors.text.secondary, fontSize: 13, lineHeight: 19 },
   status: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     borderRadius: 8,
     flexDirection: 'row',
     gap: 10,
     padding: 14,
   },
   statusOk: { backgroundColor: '#E8F5EC' },
-  statusText: { color: '#111111', flex: 1, fontSize: 14, fontWeight: '600' },
-  box: { backgroundColor: '#FFFFFF', borderRadius: 8, gap: 12, padding: 14 },
-  myCode: { color: '#111111', fontSize: 18, fontWeight: '700', textAlign: 'center' },
+  statusText: { color: colors.text.primary, flex: 1, fontSize: 14, fontWeight: '600' },
+  box: { ...appSurfaceStyles.card, gap: 12, padding: 16 },
+  myCode: { color: colors.text.primary, fontSize: 18, fontWeight: '700', textAlign: 'center' },
   input: {
-    backgroundColor: '#F3F3F4',
+    backgroundColor: colors.surface.subtle,
     borderRadius: 6,
-    color: '#111111',
+    color: colors.text.primary,
     fontSize: 18,
     height: 48,
     letterSpacing: 4,
     paddingHorizontal: 12,
     textAlign: 'center',
   },
-  confirmButton: {
-    alignItems: 'center',
-    backgroundColor: '#FFCC00',
-    borderRadius: 6,
-    height: 46,
-    justifyContent: 'center',
-  },
-  confirmText: { color: '#111111', fontWeight: '700' },
 });

@@ -1,20 +1,26 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Animatable from 'react-native-animatable';
 import {
+  Platform,
   ActivityIndicator,
-  Alert,
+  Animated as NativeAnimated,
   FlatList,
   ListRenderItem,
+  PanResponder,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppText as Text } from '@/components/ui/app-text';
+import { AppToast } from '@/components/ui/app-toast';
+import { useAppToast } from '@/src/view/hooks/useAppToast';
+import { AppButton, AppEmptyState, AppPageHeader, appLayoutStyles, appSurfaceStyles } from '@/components/ui/app-ui';
+import { colors } from '@/src/view/theme/tokens';
 import {
   CampusEvent,
   isAuthSessionError,
@@ -26,11 +32,15 @@ import {
 import { formatCampusDayMonth } from '@/src/lib/datetime/campusTime';
 import { getEventImageUri } from '@/src/lib/events/eventImage';
 
+
 type EventViewMode = 'featured' | 'grid' | 'list';
 type EventViewIcon = 'view-agenda' | 'grid-view' | 'view-list';
+type EventPresentationRow = { key: string; events: CampusEvent[]; startIndex: number; isGridRow: boolean };
+const EVENT_VIEW_MODES: EventViewMode[] = ['featured', 'grid', 'list'];
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { showToast, toast } = useAppToast();
   const [events, setEvents] = useState<CampusEvent[]>([]);
   const [subscribedIds, setSubscribedIds] = useState<Set<number>>(() => new Set());
   const [pendingIds, setPendingIds] = useState<Set<number>>(() => new Set());
@@ -58,12 +68,12 @@ export default function HomeScreen() {
 
         // Rollback the optimistic change on failure.
         setSubscribedIds((current) => toggleId(current, eventId, wasSubscribed));
-        Alert.alert(
-          'Ops',
-          toggleError instanceof Error
+        showToast({
+          message: toggleError instanceof Error
             ? toggleError.message
             : 'Não foi possível atualizar sua inscrição.',
-        );
+          type: 'error',
+        });
       } finally {
         setPendingIds((current) => {
           const next = new Set(current);
@@ -72,20 +82,48 @@ export default function HomeScreen() {
         });
       }
     },
-    [router, subscribedIds],
+    [router, showToast, subscribedIds],
   );
 
-  const renderEvent = useCallback<ListRenderItem<CampusEvent>>(
-    ({ item, index }) => (
-      <EventCard
-        event={item}
-        index={index}
-        isPending={pendingIds.has(item.id)}
-        isSubscribed={subscribedIds.has(item.id)}
-        onToggleSubscription={handleToggleSubscription}
-        viewMode={viewMode}
-      />
-    ),
+  const presentationRows = useMemo<EventPresentationRow[]>(() => {
+    if (viewMode === 'grid') {
+      const rows: EventPresentationRow[] = [];
+      for (let index = 0; index < events.length; index += 2) {
+        const rowEvents = events.slice(index, index + 2);
+        rows.push({
+          key: `grid-${rowEvents.map((event) => event.id).join('-')}`,
+          events: rowEvents,
+          startIndex: index,
+          isGridRow: true,
+        });
+      }
+      return rows;
+    }
+
+    return events.map((event, index) => ({
+      key: `${viewMode}-${event.id}`,
+      events: [event],
+      startIndex: index,
+      isGridRow: false,
+    }));
+  }, [events, viewMode]);
+
+  const renderPresentationRow = useCallback<ListRenderItem<EventPresentationRow>>(
+    ({ item }) => {
+      const cards = item.events.map((event, offset) => (
+        <EventCard
+          key={event.id}
+          event={event}
+          index={item.startIndex + offset}
+          isPending={pendingIds.has(event.id)}
+          isSubscribed={subscribedIds.has(event.id)}
+          onToggleSubscription={handleToggleSubscription}
+          viewMode={viewMode}
+        />
+      ));
+
+      return item.isGridRow ? <View style={styles.gridRow}>{cards}</View> : cards[0] ?? null;
+    },
     [handleToggleSubscription, pendingIds, subscribedIds, viewMode],
   );
 
@@ -117,6 +155,12 @@ export default function HomeScreen() {
           if (isMounted) {
             setEvents([]);
             setSubscribedIds(new Set());
+            showToast({
+              message: homeError instanceof Error
+                ? homeError.message
+                : 'Não foi possível carregar os eventos. Tente novamente.',
+              type: 'error',
+            });
           }
         } finally {
           if (isMounted) {
@@ -130,28 +174,26 @@ export default function HomeScreen() {
       return () => {
         isMounted = false;
       };
-    }, [router]),
+    }, [router, showToast]),
   );
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <FlatList
-        key={`events-${viewMode}`}
         contentContainerStyle={[styles.content, viewMode === 'grid' ? styles.gridContent : null]}
-        data={events}
+        data={presentationRows}
         initialNumToRender={4}
-        keyExtractor={keyExtractor}
+        keyExtractor={(row) => row.key}
         ListEmptyComponent={!isLoading ? EmptyEvents : null}
         ListHeaderComponent={
           <HomeHeader isLoading={isLoading} viewMode={viewMode} onChangeViewMode={setViewMode} />
         }
         maxToRenderPerBatch={5}
-        numColumns={viewMode === 'grid' ? 2 : 1}
-        columnWrapperStyle={viewMode === 'grid' ? styles.gridRow : undefined}
-        renderItem={renderEvent}
+        renderItem={renderPresentationRow}
         showsVerticalScrollIndicator={false}
         windowSize={7}
       />
+      <AppToast visible={Boolean(toast)} message={toast?.message ?? ''} type={toast?.type} />
     </SafeAreaView>
   );
 }
@@ -167,51 +209,238 @@ function HomeHeader({
 }) {
   return (
     <>
-      <Animatable.Text
-        animation="fadeInDown"
-        duration={420}
-        style={styles.headerTitle}
-        useNativeDriver>
-        Eventos Culturais UTFPR
-      </Animatable.Text>
-
-      <View style={styles.viewModeContainer}>
-        <View accessibilityRole="radiogroup" style={styles.viewModeSelector}>
-          <ViewModeButton
-            accessibilityLabel="Cartões grandes"
-            icon="view-agenda"
-            isSelected={viewMode === 'featured'}
-            label="Destaques"
-            onPress={() => onChangeViewMode('featured')}
-          />
-          <ViewModeButton
-            accessibilityLabel="Grade com duas colunas"
-            icon="grid-view"
-            isSelected={viewMode === 'grid'}
-            label="Grade"
-            onPress={() => onChangeViewMode('grid')}
-          />
-          <ViewModeButton
-            accessibilityLabel="Lista compacta"
-            icon="view-list"
-            isSelected={viewMode === 'list'}
-            label="Lista"
-            onPress={() => onChangeViewMode('list')}
-          />
+      {/* Native FlatList can re-render its header when the presentation mode changes.
+          Keep the title static on native so its entrance animation never replays. */}
+      {Platform.OS === 'web' ? (
+        <Animatable.View animation="fadeInDown" duration={420} useNativeDriver={false}>
+          <AppPageHeader title="Eventos Culturais UTFPR" style={styles.homePageHeader} />
+        </Animatable.View>
+      ) : (
+        <View>
+          <AppPageHeader title="Eventos Culturais UTFPR" style={styles.homePageHeader} />
         </View>
-      </View>
+      )}
+
+      <ViewModeSelector viewMode={viewMode} onChangeViewMode={onChangeViewMode} />
 
       {isLoading ? (
         <Animatable.View
           animation="pulse"
           iterationCount="infinite"
           style={styles.loadingRow}
-          useNativeDriver>
-          <ActivityIndicator color="#111111" />
+          useNativeDriver={Platform.OS !== 'web'}>
+          <ActivityIndicator color={colors.text.primary} />
           <Text style={styles.loadingText}>Atualizando eventos...</Text>
         </Animatable.View>
       ) : null}
     </>
+  );
+}
+
+function ViewModeSelector({
+  viewMode,
+  onChangeViewMode,
+}: {
+  viewMode: EventViewMode;
+  onChangeViewMode: (mode: EventViewMode) => void;
+}) {
+  const selectorRef = useRef<View>(null);
+  const [selectorWidth, setSelectorWidth] = useState(0);
+  const indicatorX = useRef(new NativeAnimated.Value(0)).current;
+  const suppressPressRef = useRef(false);
+  const pointerRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    dragging: boolean;
+  } | null>(null);
+  const activeModeIndex = EVENT_VIEW_MODES.indexOf(viewMode);
+  const segmentWidth = Math.max(0, (selectorWidth - 16) / EVENT_VIEW_MODES.length);
+  const maxIndicatorX = Math.max(0, segmentWidth * (EVENT_VIEW_MODES.length - 1));
+
+  const onLayout = (event: { nativeEvent: { layout: { width: number } } }) => {
+    setSelectorWidth(event.nativeEvent.layout.width);
+  };
+
+  const animateIndicatorTo = useCallback((index: number) => {
+    NativeAnimated.spring(indicatorX, {
+      toValue: Math.max(0, Math.min(EVENT_VIEW_MODES.length - 1, index)) * segmentWidth,
+      damping: 19,
+      stiffness: 230,
+      mass: 0.72,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
+  }, [indicatorX, segmentWidth]);
+
+  const panResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponderCapture: (_event, gesture) => (
+      Platform.OS !== 'web'
+      && Math.abs(gesture.dx) >= 14
+      && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.2
+    ),
+    onPanResponderGrant: () => {
+      suppressPressRef.current = true;
+      indicatorX.setValue(Math.max(0, Math.min(maxIndicatorX, activeModeIndex * segmentWidth)));
+    },
+    onPanResponderMove: (_event, gesture) => {
+      // The indicator follows the finger, but the selector can advance only
+      // one adjacent option per gesture.
+      const boundedDx = Math.max(-segmentWidth, Math.min(segmentWidth, gesture.dx));
+      const nextX = Math.max(0, Math.min(maxIndicatorX, activeModeIndex * segmentWidth + boundedDx));
+      indicatorX.setValue(nextX);
+    },
+    onPanResponderRelease: (_event, gesture) => {
+      const halfSegment = segmentWidth / 2;
+      const direction = gesture.dx > halfSegment ? 1 : gesture.dx < -halfSegment ? -1 : 0;
+      const nextIndex = Math.max(0, Math.min(EVENT_VIEW_MODES.length - 1, activeModeIndex + direction));
+      if (nextIndex !== activeModeIndex) {
+        onChangeViewMode(EVENT_VIEW_MODES[nextIndex]);
+      } else {
+        animateIndicatorTo(activeModeIndex);
+      }
+      setTimeout(() => { suppressPressRef.current = false; }, 300);
+    },
+    onPanResponderTerminate: () => {
+      animateIndicatorTo(activeModeIndex);
+      setTimeout(() => { suppressPressRef.current = false; }, 300);
+    },
+    onPanResponderTerminationRequest: () => false,
+  }), [activeModeIndex, animateIndicatorTo, indicatorX, maxIndicatorX, onChangeViewMode, segmentWidth]);
+
+  useEffect(() => {
+    if (segmentWidth <= 0) return;
+    const animation = NativeAnimated.spring(indicatorX, {
+      toValue: activeModeIndex * segmentWidth,
+      damping: 19,
+      stiffness: 230,
+      mass: 0.72,
+      useNativeDriver: Platform.OS !== 'web',
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [activeModeIndex, indicatorX, segmentWidth]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const element = selectorRef.current as unknown as HTMLElement | null;
+    if (!element) return;
+    const previousTouchAction = element.style.touchAction;
+    element.style.touchAction = 'pan-y';
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      pointerRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        dragging: false,
+      };
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const pointer = pointerRef.current;
+      if (!pointer || pointer.pointerId !== event.pointerId) return;
+      const dx = event.clientX - pointer.startX;
+      const dy = event.clientY - pointer.startY;
+      if (!pointer.dragging) {
+        if (Math.abs(dx) < 14 || Math.abs(dx) <= Math.abs(dy) * 1.2) return;
+        pointer.dragging = true;
+        suppressPressRef.current = true;
+      }
+      event.preventDefault();
+      const boundedDx = Math.max(-segmentWidth, Math.min(segmentWidth, dx));
+      const nextX = Math.max(0, Math.min(maxIndicatorX, activeModeIndex * segmentWidth + boundedDx));
+      indicatorX.setValue(nextX);
+    };
+
+    const finishPointer = (event: PointerEvent) => {
+      const pointer = pointerRef.current;
+      if (!pointer || pointer.pointerId !== event.pointerId) return;
+      pointerRef.current = null;
+      if (!pointer.dragging) {
+        suppressPressRef.current = false;
+        return;
+      }
+      const dx = event.clientX - pointer.startX;
+      const halfSegment = segmentWidth / 2;
+      const direction = dx > halfSegment ? 1 : dx < -halfSegment ? -1 : 0;
+      const nextIndex = Math.max(0, Math.min(EVENT_VIEW_MODES.length - 1, activeModeIndex + direction));
+      if (nextIndex !== activeModeIndex) {
+        onChangeViewMode(EVENT_VIEW_MODES[nextIndex]);
+      } else {
+        animateIndicatorTo(activeModeIndex);
+      }
+      // Keep the press suppressed until the browser emits the synthetic click.
+      window.setTimeout(() => { suppressPressRef.current = false; }, 350);
+    };
+
+    const cancelPointer = (event: PointerEvent) => {
+      const pointer = pointerRef.current;
+      if (!pointer || pointer.pointerId !== event.pointerId) return;
+      pointerRef.current = null;
+      animateIndicatorTo(activeModeIndex);
+      suppressPressRef.current = false;
+    };
+
+    element.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('pointermove', handlePointerMove, { passive: false });
+    document.addEventListener('pointerup', finishPointer);
+    document.addEventListener('pointercancel', cancelPointer);
+    return () => {
+      element.style.touchAction = previousTouchAction;
+      element.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', finishPointer);
+      document.removeEventListener('pointercancel', cancelPointer);
+    };
+  }, [activeModeIndex, animateIndicatorTo, indicatorX, maxIndicatorX, onChangeViewMode, segmentWidth]);
+
+  const selectMode = (mode: EventViewMode) => {
+    if (suppressPressRef.current) return;
+    onChangeViewMode(mode);
+  };
+
+  return (
+    <View style={styles.viewModeContainer}>
+      <View
+        ref={selectorRef}
+        collapsable={false}
+        onLayout={onLayout}
+        accessibilityRole="radiogroup"
+        style={styles.viewModeSelector}
+        {...panResponder.panHandlers}>
+        {segmentWidth > 0 ? (
+          <NativeAnimated.View
+            style={[
+              styles.viewModeIndicator,
+              { pointerEvents: 'none' },
+              { width: segmentWidth, transform: [{ translateX: indicatorX }] },
+            ]}
+          />
+        ) : null}
+        <ViewModeButton
+          accessibilityLabel="Cartões grandes"
+          icon="view-agenda"
+          isSelected={viewMode === 'featured'}
+          label="Destaques"
+          onPress={() => selectMode('featured')}
+        />
+        <ViewModeButton
+          accessibilityLabel="Grade com duas colunas"
+          icon="grid-view"
+          isSelected={viewMode === 'grid'}
+          label="Grade"
+          onPress={() => selectMode('grid')}
+        />
+        <ViewModeButton
+          accessibilityLabel="Lista compacta"
+          icon="view-list"
+          isSelected={viewMode === 'list'}
+          label="Lista"
+          onPress={() => selectMode('list')}
+        />
+      </View>
+    </View>
   );
 }
 
@@ -231,23 +460,29 @@ function ViewModeButton({
   return (
     <Pressable
       accessibilityLabel={accessibilityLabel}
+      accessibilityHint="Você também pode deslizar para alternar a visualização"
       accessibilityRole="radio"
       accessibilityState={{ checked: isSelected }}
       onPress={onPress}
-      style={[styles.viewModeButton, isSelected ? styles.viewModeButtonSelected : null]}>
-      <MaterialIcons color={isSelected ? '#171717' : '#777777'} name={icon} size={17} />
-      <Text style={[styles.viewModeButtonText, isSelected ? styles.viewModeButtonTextSelected : null]}>
-        {label}
-      </Text>
+      style={styles.viewModeButtonPressable}>
+      <View style={styles.viewModeButton}>
+        <MaterialIcons color={isSelected ? colors.text.primary : '#777777'} name={icon} size={17} />
+        <Text style={[styles.viewModeButtonText, isSelected ? styles.viewModeButtonTextSelected : null]}>
+          {label}
+        </Text>
+      </View>
     </Pressable>
   );
 }
 
 function EmptyEvents() {
   return (
-    <Animatable.Text animation="fadeIn" duration={360} style={styles.emptyText} useNativeDriver>
-      Nenhum evento disponível no momento.
-    </Animatable.Text>
+    <AppEmptyState
+      title="Nenhum evento disponível"
+      description="Quando novos eventos forem publicados, eles aparecerão aqui."
+      icon={<MaterialIcons name="event-available" size={24} color={colors.text.muted} />}
+      style={styles.emptyState}
+    />
   );
 }
 
@@ -278,7 +513,7 @@ function EventCard({
         viewMode === 'grid' ? styles.gridCard : null,
         viewMode === 'list' ? styles.listCard : null,
       ]}
-      useNativeDriver>
+      useNativeDriver={Platform.OS !== 'web'}>
       <View
         style={[
           styles.eventVisual,
@@ -325,41 +560,23 @@ function EventCard({
         <Text numberOfLines={2} style={styles.eventDescription}>
           {event.description}
         </Text>
-        <Animatable.View animation="fadeIn" delay={index * 90 + 180} useNativeDriver>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: isPending, selected: isSubscribed }}
+        <Animatable.View animation="fadeIn" delay={index * 90 + 180} useNativeDriver={Platform.OS !== 'web'}>
+          <AppButton
+            label={isSubscribed ? 'Cancelar inscrição' : 'Inscrever-se'}
+            variant={isSubscribed ? 'secondary' : 'primary'}
+            size={viewMode === 'featured' ? 'lg' : 'md'}
+            fullWidth
+            loading={isPending}
             disabled={isPending}
             onPress={() => onToggleSubscription(event.id)}
-            style={[
-              styles.eventButton,
-              viewMode !== 'featured' ? styles.compactEventButton : null,
-              isSubscribed && styles.eventButtonSubscribed,
-              isPending && styles.eventButtonPending,
-            ]}>
-            {isPending ? (
-              <ActivityIndicator color="#111111" size="small" />
-            ) : (
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.eventButtonText,
-                  viewMode !== 'featured' ? styles.compactEventButtonText : null,
-                  isSubscribed && styles.eventButtonTextSubscribed,
-                ]}>
-                {isSubscribed ? 'Cancelar inscrição' : 'Inscrever-se'}
-              </Text>
-            )}
-          </Pressable>
+            style={styles.sharedEventButton}
+          />
         </Animatable.View>
       </View>
     </Animatable.View>
   );
 }
 
-function keyExtractor(event: CampusEvent) {
-  return String(event.id);
-}
 
 function toggleId(current: Set<number>, eventId: number, shouldContain: boolean) {
   const next = new Set(current);
@@ -375,39 +592,48 @@ function toggleId(current: Set<number>, eventId: number, shouldContain: boolean)
 
 const styles = StyleSheet.create({
   safeArea: {
+    ...appLayoutStyles.screen,
     flex: 1,
-    backgroundColor: '#F7F7F8',
   },
   content: {
+    ...appLayoutStyles.content,
     gap: 18,
     paddingBottom: 108,
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 20,
   },
   gridContent: {
     gap: 12,
   },
   gridRow: {
+    alignItems: 'stretch',
+    flexDirection: 'row',
     gap: 12,
+    width: '100%',
   },
-  headerTitle: {
-    color: '#1E1E1E',
-    fontSize: 19,
-    fontWeight: '900',
-    paddingBottom: 12,
-    paddingTop: 10,
-    textAlign: 'center',
-  },
+  homePageHeader: { marginBottom: 16, paddingTop: 6 },
+  emptyState: { ...appSurfaceStyles.card, marginTop: 12 },
+  sharedEventButton: { marginTop: 12 },
   viewModeContainer: {
     marginBottom: 4,
   },
   viewModeSelector: {
+    position: 'relative',
     backgroundColor: '#EEEEF0',
     borderRadius: 8,
     flexDirection: 'row',
     gap: 4,
     padding: 4,
   },
+  viewModeIndicator: {
+    position: 'absolute',
+    left: 4,
+    top: 4,
+    bottom: 4,
+    borderRadius: 6,
+    backgroundColor: colors.neutral.white,
+  },
+  viewModeButtonPressable: { flex: 1, minWidth: 0, borderRadius: 6, zIndex: 1 },
   viewModeButton: {
     alignItems: 'center',
     borderRadius: 6,
@@ -418,22 +644,14 @@ const styles = StyleSheet.create({
     minHeight: 38,
     paddingHorizontal: 5,
   },
-  viewModeButtonSelected: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#111111',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 1,
-  },
   viewModeButtonText: {
     color: '#777777',
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '500',
   },
   viewModeButtonTextSelected: {
-    color: '#171717',
-    fontWeight: '900',
+    color: colors.text.primary,
+    fontWeight: '600',
   },
   loadingRow: {
     alignItems: 'center',
@@ -454,17 +672,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 7,
+    ...appSurfaceStyles.card,
+    borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#111111',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.14,
-    shadowRadius: 8,
+    boxShadow: '0px 3px 8px rgba(17, 17, 17, 0.14)',
     elevation: 3,
   },
   gridCard: {
     flex: 1,
+    minWidth: 0,
   },
   listCard: {
     flexDirection: 'row',
@@ -478,14 +694,14 @@ const styles = StyleSheet.create({
   },
   authorAvatar: {
     alignItems: 'center',
-    backgroundColor: '#2F3338',
+    backgroundColor: colors.text.heading,
     borderRadius: 12,
     height: 24,
     justifyContent: 'center',
     width: 24,
   },
   authorName: {
-    color: '#2F3338',
+    color: colors.text.heading,
     fontSize: 10,
     fontWeight: '800',
   },
@@ -557,6 +773,8 @@ const styles = StyleSheet.create({
     paddingTop: 14,
   },
   gridCardBody: {
+    flex: 1,
+    minWidth: 0,
     paddingBottom: 11,
     paddingHorizontal: 10,
     paddingTop: 10,
@@ -578,7 +796,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   eventTitle: {
-    color: '#202124',
+    color: colors.text.heading,
     fontSize: 18,
     fontWeight: '900',
     lineHeight: 22,
@@ -604,27 +822,27 @@ const styles = StyleSheet.create({
   },
   eventButton: {
     alignItems: 'center',
-    backgroundColor: '#FFCC00',
+    backgroundColor: colors.brand.primary,
     borderRadius: 3,
     height: 46,
     justifyContent: 'center',
     marginTop: 16,
   },
   eventButtonSubscribed: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#111111',
+    backgroundColor: colors.neutral.white,
+    borderColor: colors.text.primary,
     borderWidth: 1.5,
   },
   eventButtonPending: {
     opacity: 0.7,
   },
   eventButtonText: {
-    color: '#111111',
+    color: colors.text.primary,
     fontSize: 12,
     fontWeight: '900',
     textTransform: 'uppercase',
   },
   eventButtonTextSubscribed: {
-    color: '#111111',
+    color: colors.text.primary,
   },
 });
